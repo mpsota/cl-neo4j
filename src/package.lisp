@@ -7,7 +7,8 @@
 	#:json
 	#:json-rpc
 	#:drakma)
-  (:export #:get-node
+  (:export #:basic-handler
+           #:get-node
            #:create-node
            #:delete-node
 	   #:set-node-properties

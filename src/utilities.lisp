@@ -1,7 +1,7 @@
 (in-package #:cl-neo4j)
 
-(defun format-neo4j-query (host port resource &key (db-postfix "db/data/"))
-  (format nil "http://~A:~A/~A~A" host port db-postfix resource))
+(defun format-neo4j-query (host port resource &key (db-postfix "db/data/") (protocol "http"))
+  (format nil "~A://~A:~A/~A~A" protocol host port db-postfix resource))
 
 (defgeneric encode-neo4j-json-payload (object encode-type &key)
   (:method (object encode-type &key)
