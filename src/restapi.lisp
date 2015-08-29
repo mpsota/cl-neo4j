@@ -2,6 +2,14 @@
 
 (in-package #:cl-neo4j)
 
+(def-neo4j-fun transaction-with-commit (statements)
+               :post
+               (:uri-spec "transaction/commit")
+               (:encode statements :alist)
+               (:status-handlers
+                 (200 (decode-neo4j-json-output body))
+                 (401 (error 'unauthorised-error))))
+
 (def-neo4j-fun get-node (node-id)
   :get
   (:uri-spec (if node-id
@@ -21,6 +29,15 @@
    (400 (error 'invalid-data-sent-error :uri uri :json json))
    (401 (error 'unauthorised-error))))
 
+(def-neo4j-fun set-node-label (node-id label)
+               :post
+               (:uri-spec (format nil "node/~A/labels" node-id))
+               (:encode label :string)
+               (:status-handlers
+                 (204 (values t body))
+                 (400 (error 'invalid-data-sent-error :uri uri :json json))
+                 (401 (error 'unauthorised-error))
+                 (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun delete-node (node-id)
   :delete
