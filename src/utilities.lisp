@@ -8,6 +8,10 @@
     (declare (ignore encode-type))
     (encode-json-to-string object)))
 
+(defmethod encode-neo4j-json-payload (object (encode-type (eql :alist)) &key)
+  (declare (ignore encode-type))
+  (encode-json-alist-to-string object))
+
 (defmethod encode-neo4j-json-payload (object (encode-type (eql :node-url)) &key (host *neo4j-host*) (port *neo4j-port*))
   (declare (ignore encode-type))
   (format-neo4j-query host port (format nil "node/~A" object)))
