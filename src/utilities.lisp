@@ -12,19 +12,19 @@
   (declare (ignore encode-type))
   (encode-json-alist-to-string object))
 
-(defmethod encode-neo4j-json-payload (object (encode-type (eql :node-url)) &key (host *neo4j-host*) (port *neo4j-port*))
+(defmethod encode-neo4j-json-payload (object (encode-type (eql :node-url)) &key host port)
   (declare (ignore encode-type))
   (format-neo4j-query host port (format nil "node/~A" object)))
 
-(defmethod encode-neo4j-json-payload (object (encode-type (eql :node-url-single)) &key (host *neo4j-host*) (port *neo4j-port*))
+(defmethod encode-neo4j-json-payload (object (encode-type (eql :node-url-single)) &key host port)
   (declare (ignore encode-type))
   (encode-neo4j-json-payload (encode-neo4j-json-payload object :node-url :host host :port port) :string))
 
-(defmethod encode-neo4j-json-payload (object (encode-type (eql :relationship-url)) &key (host *neo4j-host*) (port *neo4j-port*))
+(defmethod encode-neo4j-json-payload (object (encode-type (eql :relationship-url)) &key host port)
   (declare (ignore encode-type))
   (format-neo4j-query host port (format nil "relationship/~A" object)))
 
-(defmethod encode-neo4j-json-payload (object (encode-type (eql :relationship-url-single)) &key (host *neo4j-host*) (port *neo4j-port*))
+(defmethod encode-neo4j-json-payload (object (encode-type (eql :relationship-url-single)) &key host port)
   (declare (ignore encode-type))
   (encode-neo4j-json-payload (encode-neo4j-json-payload object :relationship-url :host host :port port) :string))
 
