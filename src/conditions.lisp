@@ -2,6 +2,11 @@
 
 (in-package #:cl-neo4j)
 
+(define-condition unauthorised-error (error)
+  ((status :accessor status :initarg :status))
+  (:report (lambda (condition stream)
+             (format stream "Access unauthorised: ~A" (status condition)))))
+
 (define-condition unknown-return-type-error (error)
   ((uri :accessor uri :initarg :uri)
    (property :accessor property :initarg :property)
