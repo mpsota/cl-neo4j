@@ -1,14 +1,32 @@
 cl-neo4j
 ----------------
 
-Wrapper over neo4j Graph Database API.
+Interface library for the Neo4J Graph Database API.
 
 cl-neo4j is available under MIT License.
+Written by Kevin Raison, forked by James Fleming.
+
+Currently in alpha status, but will improve as I update the test suite.
+
 
 Basic API
 --------------
 
-cl-neo4j package has a very thin REST API wrapper that returns alists of neo4j result. So like in neo4j one has to extract the id by oneself. Functions correspond to those available in API, see restapi.lisp for details.
+It largely mirrors the REST API as documented here: http://neo4j.com/docs/2.2.5/rest-api.html
+Authentication and the Transactional Cypher HTTP endpoint are new, but working.
+
+Each function expects an argument `:request-handler <handler>` where the handler is an instance of `cl-neo4j:basic-handler`.
+This object carries all attributes of the connection:
+
+- hostname (default: localhost)
+- port (default: 7474)
+- protocol (default: https)
+- dbuser (default: neo4j)
+- dbpasswd (default: neo4j)
+
+For a default local install, you'll only need to set the password on the server, and then invoke `(make-instance 'cl-neo4j:basic-handler :dbpasswd <new-password>)` to produce a suitable object.
+
+The return values are alists of Neo4J results, from which you can extract the data you need.
 
 Lispy Wrapper
 --------------
