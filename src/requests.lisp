@@ -2,26 +2,19 @@
 
 (in-package :cl-neo4j)
 
-#+not-used
-(defmacro with-neo4j-database ((host port user pass) &rest body)
-  `(let ((*neo4j-host* ,host)
-         (*neo4j-port* ,port)
-         (*neo4j-user* ,user)
-         (*neo4j-pass* ,pass))
-     ,@body))
+(defvar *default-request-handler*)
 
-#+not-used
 (defmacro with-request-handler (handler &body body)
-  `(let ((*default-request-handler* (apply ,(car handler) ,(cdr handler))))
-     ,@body
-     (close-handler *default-request-handler*)))
-
-(defvar *default-request-handler* 'basic-handler)
+  "evaluates body with `*default-request-handler*' set to handler"
+  `(let ((*default-request-handler* ,handler))
+     (unwind-protect (progn
+                       ,@body)
+       (close-handler *default-request-handler*))))
 
 ;; Requests and handlers
 
 (defmacro def-neo4j-fun (name lambda-list method &rest args)
-  `(defun ,name (&key request-handler ,@lambda-list)
+  `(defun ,name (&key (request-handler *default-request-handler*) ,@lambda-list)
      (let ((uri ,(cadr (assoc :uri-spec args)))
            (json (encode-neo4j-json-payload ,@(aif (assoc :encode args)
                                                    (cdr it)
@@ -29,6 +22,7 @@
        (make-neo4j-request ,method uri json
                            (list ,@(mapcar (lambda (handler)
                                              `(list ,(car handler) (lambda (body uri json)
+                                                                     (declare (ignorable body uri json))
                                                                      ,(cadr handler))))
                                            (cdr (assoc :status-handlers args))))
                            :request-handler request-handler))))
@@ -57,7 +51,7 @@
   (:documentation "Closes the handler. Handler should do finalization operarions - batch handler sends the request at this point."))
 
 (defclass basic-handler ()
-  ((protocol :initarg :protocol :reader protocol :initform "http")
+  ((protocol :initarg :protocol :accessor protocol :initform :http/1.1)
    (host :initarg :host :accessor handler-host :initform *neo4j-host*)
    (port :initarg :port :accessor handler-port :initform *neo4j-port*)
    (user :initarg :user :accessor handler-user :initform *neo4j-user*)
@@ -65,12 +59,13 @@
   (:documentation "Basic handler that just sends request to the database."))
 
 (defun basic-handler (&key (host *neo4j-host*) (port *neo4j-port*)
-                        (user *neo4j-user*) (pass *neo4j-pass*))
+                        (user *neo4j-user*) (pass *neo4j-pass*) (protocol :http/1.1))
   (make-instance 'basic-handler
                  :host host
                  :port port
                  :user user
-                 :pass pass))
+                 :pass pass
+                 :protocol protocol))
 
 (defmethod send-request ((handler basic-handler) request)
   (with-accessors ((method request-method) (uri request-uri) (payload request-payload))

@@ -54,7 +54,9 @@
            ;; Vars
            #:*neo4j-port*
            #:*neo4j-user*
-           #:*neo4j-pass*))
+           #:*neo4j-pass*
+           ;;
+           #:with-request-handler))
 
 (defpackage #:cl-neo4j-wrapper
   (:use

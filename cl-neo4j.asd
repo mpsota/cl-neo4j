@@ -5,7 +5,7 @@
 
 (defsystem cl-neo4j
   :name "neo4j RESTful Client Interface ()"
-  :maintainer "Mikhail Novikov <freiksenet@gmail.com>"
+  :maintainer "Mikhail Novikov <freiksenet@gmail.com>, Equill <https://github.com/equill>, Michał Psota <michal@lisp.pl>"
   :author "Kevin Raison <last name @ chatsubo dot net>"
   :version "0.4"
   :description "neo4j RESTful Client Interface"
@@ -22,10 +22,11 @@
             :serial t
             :components
             ((:file "package")
-             (:file "utilities")
+             (:file "globals")
+             (:file "query")
+             (:file "utilities" :depends-on ("query"))
              (:file "conditions" :depends-on ("utilities"))
-             (:file "query" :depends-on ("utilities"))
-             (:file "requests" :depends-on ("conditions" "query"))
+             (:file "requests" :depends-on ("conditions" "query" "globals"))
              (:file "restapi" :depends-on ("requests"))
              (:file "wrapper" :depends-on ("restapi"))))))
 
