@@ -22,8 +22,7 @@
             :serial t
             :components
             ((:file "package")
-             (:file "globals" :depends-on ("package"))
-             (:file "utilities" :depends-on ("globals"))
+             (:file "utilities")
              (:file "conditions" :depends-on ("utilities"))
              (:file "query" :depends-on ("utilities"))
              (:file "requests" :depends-on ("conditions" "query"))

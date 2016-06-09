@@ -2,6 +2,14 @@
 
 (in-package #:cl-neo4j)
 
+(def-neo4j-fun transaction-with-commit (statements)
+               :post
+               (:uri-spec "transaction/commit")
+               (:encode statements :alist)
+               (:status-handlers
+                 (200 (decode-neo4j-json-output body))
+                 (401 (error 'unauthorised-error))))
+
 (def-neo4j-fun get-node (node-id)
   :get
   (:uri-spec (if node-id
@@ -9,6 +17,7 @@
                  ""))
   (:status-handlers
    (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun create-node (properties)
@@ -17,13 +26,25 @@
   (:encode properties :string)
   (:status-handlers
    (201 (decode-neo4j-json-output body))
-   (400 (error 'invalid-data-sent-error :uri uri :json json))))
+   (400 (error 'invalid-data-sent-error :uri uri :json json))
+   (401 (error 'unauthorised-error))))
+
+(def-neo4j-fun set-node-label (node-id label)
+               :post
+               (:uri-spec (format nil "node/~A/labels" node-id))
+               (:encode label :string)
+               (:status-handlers
+                 (204 (values t body))
+                 (400 (error 'invalid-data-sent-error :uri uri :json json))
+                 (401 (error 'unauthorised-error))
+                 (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun delete-node (node-id)
   :delete
   (:uri-spec (format nil "node/~A" node-id))
   (:status-handlers
    (204 (values t body))
+   (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))
    (409 (error 'unable-to-delete-node-error :uri uri))))
 
@@ -34,6 +55,7 @@
   (:status-handlers
    (204 (values t body))
    (400 (error 'invalid-data-sent-error :uri uri :json json))
+   (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun get-node-properties (node-id)
@@ -42,6 +64,7 @@
   (:status-handlers
    (200 (decode-neo4j-json-output body))
    (204 nil)
+   (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun del-node-properties (node-id)
@@ -49,6 +72,7 @@
   (:uri-spec (format nil "node/~A/properties" node-id))
   (:status-handlers
    (204 (values t body))
+   (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun set-node-property (node-id property value)
@@ -60,7 +84,8 @@
   (:encode value :string)
   (:status-handlers
    (204 (values t body))
-   (400 (error 'invalid-data-sent-error :uri uri :json json))))
+   (400 (error 'invalid-data-sent-error :uri uri :json json))
+   (401 (error 'unauthorised-error))))
 
 (def-neo4j-fun get-node-property (node-id property)
   :get
@@ -71,6 +96,7 @@
   (:status-handlers
    (200 (decode-neo4j-json-output body))
    (400 (error 'invalid-data-sent-error :uri uri :json json))
+   (401 (error 'unauthorised-error))
    (404 (error 'property-not-found-error :uri uri))))
 
 (def-neo4j-fun del-node-property (node-id property)
@@ -81,6 +107,7 @@
                          property)))
   (:status-handlers
    (204 (values t body))
+   (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))
    (409 (error 'unable-to-delete-node-error :uri uri))))
 
@@ -89,6 +116,7 @@
   (:uri-spec (format nil "relationship/~A" relationship-id))
   (:status-handlers
    (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))
    (404 (error 'relationship-not-found-error :uri uri))))
 
 (def-neo4j-fun create-relationship (node-id to-node-id relationship-type properties)
@@ -98,6 +126,7 @@
   (:status-handlers
    (201 (decode-neo4j-json-output body))
    (400 (error 'invalid-data-sent-error :uri uri :json json))
+   (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun delete-relationship (relationship-id)
@@ -105,6 +134,7 @@
   (:uri-spec (format nil "relationship/~A" relationship-id))
   (:status-handlers
    (204 (values t body))
+   (401 (error 'unauthorised-error))
    (404 (error 'relationship-not-found-error :uri uri))))
 
 (def-neo4j-fun set-relationship-properties (relationship-id properties)
@@ -114,6 +144,7 @@
   (:status-handlers
    (204 (values t body))
    (400 (error 'invalid-data-sent-error :uri uri :json json))
+   (401 (error 'unauthorised-error))
    (404 (error 'relationship-not-found-error :uri uri))))
 
 (def-neo4j-fun get-relationship-properties (relationship-id)
@@ -122,6 +153,7 @@
   (:status-handlers
    (200 (decode-neo4j-json-output body))
    (204 nil)
+   (401 (error 'unauthorised-error))
    (404 (error 'relationship-not-found-error :uri uri))))
 
 (def-neo4j-fun del-relationship-properties (relationship-id)
@@ -129,6 +161,7 @@
   (:uri-spec (format nil "relationship/~A/properties" relationship-id))
   (:status-handlers
    (204 (values t body))
+   (401 (error 'unauthorised-error))
    (404 (error 'relationship-not-found-error :uri uri))))
 
 (def-neo4j-fun set-relationship-property (relationship-id property value)
@@ -142,6 +175,7 @@
   (:status-handlers
    (204 (values t body))
    (400 (error 'invalid-data-sent-error :uri uri :json json))
+   (401 (error 'unauthorised-error))
    (404 (error 'relationship-not-found-error :uri uri))))
 
 (def-neo4j-fun get-relationship-property (relationship-id property)
@@ -154,6 +188,7 @@
   (:status-handlers
    (200 (decode-neo4j-json-output body))
    (400 (error 'invalid-data-sent-error :uri uri :json json))
+   (401 (error 'unauthorised-error))
    (404 (error 'property-not-found-error :uri uri))))
 
 (def-neo4j-fun del-relationship-property (relationship-id property)
@@ -165,6 +200,7 @@
                          property)))
   (:status-handlers
    (204 (values t body))
+   (401 (error 'unauthorised-error))
    (404 (error 'relationship-not-found-error :uri uri))))
 
 (def-neo4j-fun get-node-relationships (node-id direction types)
@@ -178,13 +214,15 @@
                      types))
   (:status-handlers
    (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun get-relationships-types ()
   :get
   (:uri-spec "relationship/types")
   (:status-handlers
-   (200 (decode-neo4j-json-output body))))
+   (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))))
 
 (def-neo4j-fun cypher-query (statements)
   :post
@@ -195,24 +233,27 @@
    (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun create-index ((type :node) name config)
-  :post
-  (:uri-spec (format nil "index/~A" (string-downcase (symbol-name type))))
-  (:encode (cons (cons :name name) config) :string)
-  (:status-handlers
-   (201 (decode-neo4j-json-output body))))
+               :post
+               (:uri-spec (format nil "index/~A" (string-downcase (symbol-name type))))
+               (:encode (cons (cons :name name) config) :string)
+               (:status-handlers
+                 (201 (decode-neo4j-json-output body))
+                 (401 (error 'unauthorised-error))))
 
 (def-neo4j-fun delete-index ((type :node) name)
   :delete
   (:uri-spec (format nil "index/~A/~A" (string-downcase (symbol-name type)) name))
   (:status-handlers
    (204 (values t body))
+   (401 (error 'unauthorised-error))
    (404 (error 'index-not-found-error :uri uri))))
 
 (def-neo4j-fun list-indexes ((type :node))
   :get
   (:uri-spec (format nil "index/~A" (string-downcase (symbol-name type))))
   (:status-handlers
-   (200 (decode-neo4j-json-output body))))
+   (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))))
 
 (def-neo4j-fun add-to-index ((type :node) name key value object-id)
   :post
@@ -226,7 +267,8 @@
                  (list (cons :value value)))
            :object)
   (:status-handlers
-   (201 (decode-neo4j-json-output body))))
+   (201 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))))
 
 (def-neo4j-fun remove-from-index ((type :node) name key value object-id)
   :delete
@@ -234,6 +276,7 @@
                      name key (urlencode value) object-id))
   (:status-handlers
    (204 (values t body))
+   (401 (error 'unauthorised-error))
    (404 (error 'index-entry-not-found-error :uri uri))))
 
 (def-neo4j-fun lookup-index ((type :node) name key value)
@@ -242,6 +285,7 @@
                      name key (urlencode value)))
   (:status-handlers
    (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))
    (404 (error 'index-entry-not-found-error :uri uri))))
 
 (def-neo4j-fun query-index ((type :node) name query)
@@ -250,6 +294,7 @@
                      name (urlencode query)))
   (:status-handlers
    (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))
    (404 (error 'index-entry-not-found-error :uri uri))))
 
 (def-neo4j-fun traverse (node-id (return-type :node) (max-depth 1) (order :depth-first)
@@ -269,6 +314,7 @@
            :string)
   (:status-handlers
    (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun get-path (node-id to-node-id relationships (max-depth 3) (algorithm :shortest-path))
@@ -285,20 +331,22 @@
            :object)
   (:status-handlers
    (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))
    (404 (error 'path-not-found-error :uri uri))))
 
 (def-neo4j-fun get-paths (node-id to-node-id relationships (max-depth 3) (algorithm :shortest-path))
-  :post
-  (:uri-spec (format nil "node/~A/paths" node-id))
-  (:encode (list (list (cons "to" to-node-id) :node-url)
-                 (list (cons "relationships" relationships))
-                 (list (cons "max_depth" max-depth))
-                 (list (cons "algorithm" (case algorithm
-                                           (:shortest-path "shortestPath")
-                                           (:all-paths "allPaths")
-                                           (:all-simple-paths "allSimplePaths")
-                                           (:dijkstra "dijkstra")))))
-           :object)
-  (:status-handlers
-   (200 (decode-neo4j-json-output body))
-   (204 (error 'path-not-found-error :uri uri))))
+               :post
+               (:uri-spec (format nil "node/~A/paths" node-id))
+               (:encode (list (list (cons "to" to-node-id) :node-url)
+                              (list (cons "relationships" relationships))
+                              (list (cons "max_depth" max-depth))
+                              (list (cons "algorithm" (case algorithm
+                                                        (:shortest-path "shortestPath")
+                                                        (:all-paths "allPaths")
+                                                        (:all-simple-paths "allSimplePaths")
+                                                        (:dijkstra "dijkstra")))))
+                :object)
+               (:status-handlers
+                 (200 (decode-neo4j-json-output body))
+                 (204 (error 'path-not-found-error :uri uri))
+                 (401 (error 'unauthorised-error))))

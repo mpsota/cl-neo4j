@@ -2,6 +2,7 @@
 
 (in-package :cl-neo4j)
 
+#+not-used
 (defmacro with-neo4j-database ((host port user pass) &rest body)
   `(let ((*neo4j-host* ,host)
          (*neo4j-port* ,port)
@@ -9,6 +10,7 @@
          (*neo4j-pass* ,pass))
      ,@body))
 
+#+not-used
 (defmacro with-request-handler (handler &body body)
   `(let ((*default-request-handler* (apply ,(car handler) ,(cdr handler))))
      ,@body
@@ -19,17 +21,17 @@
 ;; Requests and handlers
 
 (defmacro def-neo4j-fun (name lambda-list method &rest args)
-  `(progn
-     (defun ,name (&key ,@lambda-list)
-       (let ((uri ,(cadr (assoc :uri-spec args)))
-             (json (encode-neo4j-json-payload ,@(aif (assoc :encode args)
-                                                     (cdr it)
-                                                     (list '() :string)))))
-         (make-neo4j-request ,method uri json
-                             (list ,@(mapcar (lambda (handler)
-                                               `(list ,(car handler) (lambda (body uri json)
-                                                                  ,(cadr handler))))
-                                             (cdr (assoc :status-handlers args)))))))))
+  `(defun ,name (&key request-handler ,@lambda-list)
+     (let ((uri ,(cadr (assoc :uri-spec args)))
+           (json (encode-neo4j-json-payload ,@(aif (assoc :encode args)
+                                                   (cdr it)
+                                                   (list '() :string)))))
+       (make-neo4j-request ,method uri json
+                           (list ,@(mapcar (lambda (handler)
+                                             `(list ,(car handler) (lambda (body uri json)
+                                                                     ,(cadr handler))))
+                                           (cdr (assoc :status-handlers args))))
+                           :request-handler request-handler))))
 
 (defstruct (neo4j-request (:constructor %make-neo4j-request)
                           (:conc-name request-))
@@ -55,10 +57,11 @@
   (:documentation "Closes the handler. Handler should do finalization operarions - batch handler sends the request at this point."))
 
 (defclass basic-handler ()
-  ((host :initarg :host :accessor handler-host)
-   (port :initarg :port :accessor handler-port)
-   (user :initarg :user :accessor handler-user)
-   (pass :initarg :pass :accessor handler-pass))
+  ((protocol :initarg :protocol :reader protocol :initform "http")
+   (host :initarg :host :accessor handler-host :initform *neo4j-host*)
+   (port :initarg :port :accessor handler-port :initform *neo4j-port*)
+   (user :initarg :user :accessor handler-user :initform *neo4j-user*)
+   (pass :initarg :pass :accessor handler-pass :initform *neo4j-pass*))
   (:documentation "Basic handler that just sends request to the database."))
 
 (defun basic-handler (&key (host *neo4j-host*) (port *neo4j-port*)
@@ -71,12 +74,13 @@
 
 (defmethod send-request ((handler basic-handler) request)
   (with-accessors ((method request-method) (uri request-uri) (payload request-payload))
-      request
+    request
     (multiple-value-bind (body status)
         (http-request (format-neo4j-query (handler-host handler)
                                           (handler-port handler)
                                           uri)
                       :method method
+                      :protocol (protocol handler)
                       :basic-authorization (list (handler-user handler)
                                                  (handler-pass handler))
                       :content payload
