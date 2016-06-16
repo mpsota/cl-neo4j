@@ -4,6 +4,10 @@
 
 (defvar *default-request-handler*)
 
+(defmacro set-request-handler (handler)
+  "globally binds `*default-request-handler*'"
+  `(setf *default-request-handler* ,handler))
+
 (defmacro with-request-handler (handler &body body)
   "evaluates body with `*default-request-handler*' set to handler"
   `(let ((*default-request-handler* ,handler))
@@ -14,29 +18,35 @@
 ;; Requests and handlers
 
 (defmacro def-neo4j-fun (name lambda-list method &rest args)
+  ;; TODO use keywords instead of &rest args.
   `(defun ,name (&key (request-handler *default-request-handler*) ,@lambda-list)
      (let ((uri ,(cadr (assoc :uri-spec args)))
-           (json (encode-neo4j-json-payload ,@(aif (assoc :encode args)
-                                                   (cdr it)
-                                                   (list '() :string)))))
+           (parameters ,(cadr (assoc :parameters args)))
+           (json ,(aif (assoc :encode args)
+                        `(encode-neo4j-json-payload ,@(cdr it))
+                        nil))) ;; (list '() :string) -> "null"
        (make-neo4j-request ,method uri json
                            (list ,@(mapcar (lambda (handler)
                                              `(list ,(car handler) (lambda (body uri json)
                                                                      (declare (ignorable body uri json))
-                                                                     ,(cadr handler))))
+                                                                     (progn
+                                                                       ,@(cdr handler)))))
                                            (cdr (assoc :status-handlers args))))
-                           :request-handler request-handler))))
+                           :request-handler request-handler
+                           :parameters parameters))))
 
 (defstruct (neo4j-request (:constructor %make-neo4j-request)
                           (:conc-name request-))
   method
   uri
-  payload)
+  payload
+  parameters)
 
-(defun make-neo4j-request (method uri payload error-handlers &key (request-handler *default-request-handler*))
+(defun make-neo4j-request (method uri payload error-handlers &key parameters (request-handler *default-request-handler*))
   (handle-request request-handler (%make-neo4j-request :method method
                                                        :uri uri
-                                                       :payload payload)
+                                                       :payload payload
+                                                       :parameters parameters)
                    error-handlers))
 
 (defgeneric send-request (handler request)
@@ -68,8 +78,8 @@
                  :protocol protocol))
 
 (defmethod send-request ((handler basic-handler) request)
-  (with-accessors ((method request-method) (uri request-uri) (payload request-payload))
-    request
+  (with-accessors ((method request-method) (uri request-uri) (payload request-payload) (parameters request-parameters))
+      request
     (multiple-value-bind (body status)
         (http-request (format-neo4j-query (handler-host handler)
                                           (handler-port handler)
@@ -78,14 +88,14 @@
                       :protocol (protocol handler)
                       :basic-authorization (list (handler-user handler)
                                                  (handler-pass handler))
+                      :parameters parameters
                       :content payload
                       :content-type (if payload "application/json")
-                      :accept "application/json")
+                      :accept "application/json; charset=UTF-8")
       (values status body))))
 
 (defmethod handle-request ((handler basic-handler) request error-handlers)
-  (multiple-value-bind (status body)
-      (send-request handler request)
+  (multiple-value-bind (status body) (send-request handler request)
     (aif (assoc status error-handlers)
          (funcall (second it)
                   body

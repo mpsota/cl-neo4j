@@ -295,7 +295,18 @@
   (:status-handlers
    (200 (decode-neo4j-json-output body))
    (401 (error 'unauthorised-error))
-   (404 (error 'index-entry-not-found-error :uri uri))))
+   (404 (error 'index-entry-not-found-error :uri uri))
+   (t (babel:octets-to-string body))))
+
+(def-neo4j-fun query-label (label-name key value)
+  :get
+  (:uri-spec (format nil "label/~A/nodes" label-name))
+  (:parameters (list (cons key value)))
+  (:status-handlers
+   (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))
+   (404 (error 'index-entry-not-found-error :uri uri))
+   (415 (error (babel:octets-to-string body))))) ;; maybe use :decode-contents t in drakma?
 
 (def-neo4j-fun traverse (node-id (return-type :node) (max-depth 1) (order :depth-first)
                          uniqueness relationships prune-evaluator return-filter)

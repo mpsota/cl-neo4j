@@ -1,6 +1,7 @@
 (in-package #:cl-user)
 
 (defpackage #:cl-neo4j
+  ;; (:nicknames #:neo4j)
   (:use #:cl
         #:alexandria
         #:anaphora
@@ -56,45 +57,55 @@
            #:*neo4j-user*
            #:*neo4j-pass*
            ;;
-           #:with-request-handler))
+           #:with-request-handler
+           #:set-request-handler))
 
 (defpackage #:cl-neo4j-wrapper
-  (:use
-    #:cl
-    #:alexandria
-    #:anaphora
-    #:split-sequence
-    #:cl-neo4j)
-  (:export
-    #:node-create
-    #:node-get-by-id
-    #:node-delete
-    #:node-properties
-    #:node-property
-    #:node-relationships
-    #:node-add-to-index
-    #:node-remove-from-index
-    #:node-query-index
-    #:node-traverse
+  (:nicknames #:neo)
+  (:use #:cl
+        #:alexandria
+        #:anaphora
+        #:split-sequence
+        #:cl-neo4j)
+  (:import-from #:cl-neo4j ;; some base macros, should be also available (and exported) from the wrapper
+                #:basic-handler
+                #:with-request-handler
+                #:set-request-handler
+                )
+  (:export #:with-request-handler ;; cl-neo4j functions
+           #:basic-handler
+           #:set-request-handler
+           ;; wrapper
 
-    #:relationship-create
-    #:relationship-get-by-id
-    #:relationship-delete
-    #:relationship-start
-    #:relationship-end
-    #:relationship-type
-    #:relationship-properties
-    #:relationship-property
-    #:relationship-add-to-index
-    #:relationship-remove-from-index
-    #:relationship-query-index
-    #:relationship-traverse
+           #:create
+           #:node-get-by-id
+           #:node-delete
+           #:node-properties
+           #:node-property
+           #:node-relationships
+           #:node-add-to-index
+           #:node-remove-from-index
+           #:node-query-index
+           #:node-traverse
 
-    #:standard-node
-    #:standard-relationship
+           #:relationship-create
+           #:relationship-get-by-id
+           #:relationship-delete
+           #:relationship-start
+           #:relationship-end
+           #:relationship-type
+           #:relationship-properties
+           #:relationship-property
+           #:relationship-add-to-index
+           #:relationship-remove-from-index
+           #:relationship-query-index
+           #:relationship-traverse
 
-    #:node-id
-    #:relationship-id
-    ;: Vars
-    #:*default-node-constructor*
-    #:*default-relationship-constructor*))
+           #:standard-node
+           #:standard-relationship
+
+           #:node-id
+           #:relationship-id
+                                        ;: Vars
+           #:*default-node-constructor*
+           #:*default-relationship-constructor*))

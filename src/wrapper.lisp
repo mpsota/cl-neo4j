@@ -14,14 +14,19 @@
 
 ;; Nodes
 
-(defun node-create (&key (constructor *default-node-constructor*) properties initial-connections initial-indexes)
+(defun create (labels properties &key initial-connections initial-indexes (constructor *default-node-constructor*))
   "Creates a new node in the graph. Returns created node.
 
    constructor is a constructor for nodes. By default it uses *default-node-constructor*.
    properties are plist of node properties.
    initial-connections are list of lists of node (or ids), type and direction that node should be connected to.
-   initial-indexes are list of lists of index name, key and value of indexes that node should be added to."
+   initial-indexes are list of lists of index name, key and value of indexes that node should be added to.
+  label"
+  (setf labels (ensure-list labels))
+
   (let* ((node (funcall constructor (create-node :properties (plist-alist properties)))))
+    (mapc (lambda (label)
+            (cl-neo4j:set-node-label :node-id (node-id node) :label label)) labels)
     (mapc (curry #'apply
                    (lambda (target type direction)
                      (relationship-create node target type :direction direction)))
@@ -93,6 +98,18 @@
                                         :name index
                                         :key key
                                         :value value))
+    (index-entry-not-found-error () nil)))
+
+(defun node-query-label (label key value &key (constructor *default-node-constructor*))
+  "Returns list of nodes in the index with key and value.
+
+  This is a factory method, it accepts keyword argument constructor which is defaulted to *default-node-constructor*"
+  (declare (type string key))
+  (handler-case
+      (mapcar constructor (cl-neo4j::query-label
+                                        :label-name label
+                                        :key key
+                                        :value (format nil "~s" value)))
     (index-entry-not-found-error () nil)))
 
 (defgeneric node-traverse (node &key order uniqueness relationships prune-evaluator return-filter max-depth)
