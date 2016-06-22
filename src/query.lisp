@@ -5,9 +5,9 @@
    (properties :accessor properties :initform nil :initarg :properties)))
 
 (defmethod structure-cypher-query ((q cypher-query))
-  (list (cons "statement" (statement q))
-        (cons "parameters"
-              (list (cons "props" (properties q))))))
+  `(("statement" ,@(statement q))
+    ,@(when (properties q)
+            `(("parameters" ("props" ,@(properties q)))))))
 
 (defmethod encode-cypher-query ((q cypher-query))
   (json:encode-json-alist-to-string (structure-cypher-query q)))

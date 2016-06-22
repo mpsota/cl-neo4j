@@ -12,6 +12,11 @@
 (defvar *default-relationship-constructor*
   'make-standard-relationship)
 
+;; General queries
+
+(defun query (query &optional properties)
+  (cl-neo4j:cypher-query :statements (list (make-instance 'cypher-query :statement query :properties properties))))
+
 ;; Nodes
 
 (defun create (labels properties &key initial-connections initial-indexes (constructor *default-node-constructor*))
@@ -106,7 +111,7 @@
   This is a factory method, it accepts keyword argument constructor which is defaulted to *default-node-constructor*"
   (declare (type string key))
   (handler-case
-      (mapcar constructor (cl-neo4j::query-label
+      (mapcar constructor (cl-neo4j:query-label
                                         :label-name label
                                         :key key
                                         :value (format nil "~s" value)))
@@ -135,7 +140,7 @@
         (destructuring-bind (start end)
             (case direction
               (:from (list node1 node2))
-              (:to (list node1 node2)))
+              (:to (list node2 node1)))
           (let ((relationship (funcall constructor
                                        (create-relationship :node-id start
                                                             :to-node-id end
