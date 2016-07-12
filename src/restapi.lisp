@@ -3,12 +3,12 @@
 (in-package #:cl-neo4j)
 
 (def-neo4j-fun transaction-with-commit (statements)
-               :post
-               (:uri-spec "transaction/commit")
-               (:encode statements :alist)
-               (:status-handlers
-                 (200 (decode-neo4j-json-output body))
-                 (401 (error 'unauthorised-error))))
+  :post
+  (:uri-spec "transaction/commit")
+  (:encode statements :alist)
+  (:status-handlers
+   (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))))
 
 (def-neo4j-fun get-node (node-id)
   :get
@@ -30,14 +30,14 @@
    (401 (error 'unauthorised-error))))
 
 (def-neo4j-fun set-node-label (node-id label)
-               :post
-               (:uri-spec (format nil "node/~A/labels" node-id))
-               (:encode label :string)
-               (:status-handlers
-                 (204 (values t body))
-                 (400 (error 'invalid-data-sent-error :uri uri :json json))
-                 (401 (error 'unauthorised-error))
-                 (404 (error 'node-not-found-error :uri uri))))
+  :post
+  (:uri-spec (format nil "node/~A/labels" node-id))
+  (:encode label :string)
+  (:status-handlers
+   (204 (values t body))
+   (400 (error 'invalid-data-sent-error :uri uri :json json))
+   (401 (error 'unauthorised-error))
+   (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun delete-node (node-id)
   :delete
@@ -239,6 +239,7 @@
   (:encode statements :statements)
   (:status-handlers
    (200 (decode-neo4j-json-output body))
+   (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))))
 
 (def-neo4j-fun create-index ((type :node) name config)
@@ -355,18 +356,18 @@
    (404 (error 'path-not-found-error :uri uri))))
 
 (def-neo4j-fun get-paths (node-id to-node-id relationships (max-depth 3) (algorithm :shortest-path))
-               :post
-               (:uri-spec (format nil "node/~A/paths" node-id))
-               (:encode (list (list (cons "to" to-node-id) :node-url)
-                              (list (cons "relationships" relationships))
-                              (list (cons "max_depth" max-depth))
-                              (list (cons "algorithm" (case algorithm
-                                                        (:shortest-path "shortestPath")
-                                                        (:all-paths "allPaths")
-                                                        (:all-simple-paths "allSimplePaths")
-                                                        (:dijkstra "dijkstra")))))
-                :object)
-               (:status-handlers
-                 (200 (decode-neo4j-json-output body))
-                 (204 (error 'path-not-found-error :uri uri))
-                 (401 (error 'unauthorised-error))))
+  :post
+  (:uri-spec (format nil "node/~A/paths" node-id))
+  (:encode (list (list (cons "to" to-node-id) :node-url)
+                 (list (cons "relationships" relationships))
+                 (list (cons "max_depth" max-depth))
+                 (list (cons "algorithm" (case algorithm
+                                           (:shortest-path "shortestPath")
+                                           (:all-paths "allPaths")
+                                           (:all-simple-paths "allSimplePaths")
+                                           (:dijkstra "dijkstra")))))
+           :object)
+  (:status-handlers
+   (200 (decode-neo4j-json-output body))
+   (204 (error 'path-not-found-error :uri uri))
+   (401 (error 'unauthorised-error))))

@@ -47,7 +47,7 @@
                                                        :uri uri
                                                        :payload payload
                                                        :parameters parameters)
-                   error-handlers))
+                  error-handlers))
 
 (defgeneric send-request (handler request)
   (:documentation "Governs how handler sends the request."))
@@ -93,7 +93,6 @@
                       :content-type (if payload "application/json")
                       :accept "application/json; charset=UTF-8")
       (values status body))))
-
 (defmethod handle-request ((handler basic-handler) request error-handlers)
   (multiple-value-bind (status body) (send-request handler request)
     (aif (assoc status error-handlers)
