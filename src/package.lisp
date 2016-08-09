@@ -113,6 +113,8 @@
 
            #:node-id
            #:relationship-id
+
+           #:node-labels
                                         ;: Vars
            #:*default-node-constructor*
            #:*default-relationship-constructor*))

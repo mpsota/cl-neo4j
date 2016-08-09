@@ -246,7 +246,10 @@
     :accessor node-id)
    (properties
     :initarg :properties
-    :accessor node-properties)))
+    :accessor node-properties)
+   (labels
+    :initarg :labels
+    :accessor node-labels)))
 
 (defmethod print-object ((object standard-node) stream)
   (print-unreadable-object (object stream :type t :identity '())
@@ -255,7 +258,8 @@
 (defun make-standard-node (alist)
   (make-instance 'standard-node
                  :id (extract-id-from-link (cdr (assoc :self alist)))
-                 :properties (normalize-alist (cdr (assoc :data alist)))))
+                 :properties (normalize-alist (cdr (assoc :data alist)))
+                 :labels (cdr (assoc :labels (cdr (assoc :metadata alist))))))
 
 (defmethod node-delete ((node standard-node) &key cascade)
   (node-delete (node-id node) :cascade cascade))
