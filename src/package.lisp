@@ -100,6 +100,8 @@
            #:relationship-delete
            #:relationship-start
            #:relationship-end
+           #:relationship-start-id
+           #:relationship-end-id
            #:relationship-type
            #:relationship-properties
            #:relationship-property

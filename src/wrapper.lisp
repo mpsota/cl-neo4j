@@ -328,6 +328,12 @@
 (defmethod relationship-end ((relationship standard-relationship))
   (node-get-by-id (%relationship-end-id relationship)))
 
+(defmethod relationship-start-id ((relationship standard-relationship))
+  (%relationship-start-id relationship))
+
+(defmethod relationship-end-id ((relationship standard-relationship))
+  (%relationship-end-id relationship))
+
 (defmethod relationship-property ((relationship standard-relationship) property)
   (cdr (assoc property (relationship-properties relationship) :test #'equal)))
 
