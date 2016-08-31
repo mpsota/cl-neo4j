@@ -205,7 +205,7 @@
 
 (def-neo4j-fun get-node-relationships (node-id direction types)
   :get
-  (:uri-spec (format nil "node/~A/relationships/~A/~{~A~^\\&~}"
+  (:uri-spec (format nil "node/~A/relationships/~A/~{~A~^&~}"
                      node-id
                      (cond ((null direction) "all")
                            ((symbolp direction)
