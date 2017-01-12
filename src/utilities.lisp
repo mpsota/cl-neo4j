@@ -59,6 +59,10 @@
                   object))
     (encode-neo4j-json-payload table :table)))
 
+(defmethod encode-neo4j-json-payload (object (encode-type (eql :raw-string)) &key)
+  (declare (ignore encode-type))
+  (format nil "~A" object))
+
 (defun decode-neo4j-json-output (json)
   (decode-json-from-string (babel:octets-to-string json)))
 

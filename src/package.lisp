@@ -9,6 +9,10 @@
 	#:json-rpc
 	#:drakma)
   (:export #:basic-handler
+           #:transaction-begin
+           #:transaction-keep-alive
+           #:transaction-commit
+           #:transaction-rollback
            #:transaction-with-commit
            #:get-node
            #:create-node
@@ -41,6 +45,7 @@
            #:query-index
            #:query-label
            #:cypher-query
+           #:cypher-query-in-transaction
            #:traverse
            #:get-path
            #:get-paths
@@ -81,6 +86,7 @@
            #:set-request-handler
            ;;
            #:query
+           #:with-transaction
            ;; wrapper
 
            #:create

@@ -64,3 +64,8 @@
   ((uri :accessor uri :initarg :uri))
   (:report (lambda (condition stream)
              (format stream "No path found with current algorithm at ~A" (uri condition)))))
+
+(define-condition no-such-transaction (error)
+  ((transaction :accessor transaction :initarg :transaction))
+  (:report (lambda (condition stream)
+             (format stream "No such transaction: ~D" (transaction condition)))))
