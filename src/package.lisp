@@ -14,7 +14,11 @@
            #:transaction-commit
            #:transaction-rollback
            #:transaction-with-commit
+           #:with-transaction
+           #:query
+           #:query-statement
            #:get-node
+           #:get-node-in-transaction
            #:create-node
            #:delete-node
            #:set-node-label
@@ -41,7 +45,6 @@
            #:add-to-index
            #:remove-from-index
            #:lookup-index
-           #:query
            #:query-index
            #:query-label
            #:cypher-query
@@ -49,6 +52,7 @@
            #:traverse
            #:get-path
            #:get-paths
+           #:neo4j-response-to-hashtable
            ;; Conditions
            #:unknown-return-type-error
            #:invalid-data-sent-error
@@ -75,18 +79,24 @@
         #:anaphora
         #:split-sequence
         #:cl-neo4j)
-  (:shadow #:query) ;; Simpler query, query as a string. TODO rename?
+  ;;(:shadow #:query) ;; Simpler query, query as a string. TODO rename?
   (:import-from #:cl-neo4j ;; some basic macros, should be also available (and exported) from the wrapper
                 #:basic-handler
                 #:with-request-handler
                 #:set-request-handler
+                #:neo4j-response-to-hashtable
+                #:query
+                #:query-statement
+                #:with-transaction
                 )
   (:export #:with-request-handler ;; cl-neo4j functions
            #:basic-handler
            #:set-request-handler
-           ;;
+
            #:query
+           #:query-statement
            #:with-transaction
+
            ;; wrapper
 
            #:create

@@ -12,90 +12,6 @@
 (defvar *default-relationship-constructor*
   'make-standard-relationship)
 
-;; Transactions
-
-(defclass transaction ()
-  ((id
-    :initarg :id
-    :accessor transaction-id)
-   (expires
-    :initarg :expires
-    :accessor transaction-expires)))
-
-(defmethod print-object ((object transaction) stream)
-  (print-unreadable-object (object stream :type t :identity '())
-    (format stream "~D [EXPIRES ~A]"
-            (transaction-id object)
-            (transaction-expires object))))
-
-(defvar *transaction*)
-
-(defun begin-transaction ()
-  "Begins new transaction and returns object of class `TRANSACTION'"
-  
-  (let* ((response (cl-neo4j:transaction-begin))
-         (errors (cdr (assoc :errors response)))
-         (commit (cdr (assoc :commit response)))
-         (transaction (cdr (assoc :transaction response)))
-         (expires (when transaction (cdr (assoc :expires transaction))))
-         (transaction-id (when (and commit (stringp commit))
-                           (cl-ppcre:register-groups-bind (tid)
-                               (".*transaction\/(\\d+)\/commit" commit)
-                             tid)))
-         (transaction-id-numeric (when (stringp transaction-id)
-                                   (parse-integer transaction-id))))
-    (when errors
-      (error "error while beginning transaction: ~a" errors))
-    (if transaction-id-numeric
-        (make-instance 'transaction
-                       :id transaction-id-numeric
-                       :expires expires)
-        (error "error while beginning transaction: no transaction ID received: ~A" response))))
-
-(defmethod commit-transaction ((tr transaction))
-  "Commit open transaction `TRANSACTION'"
-  (let* ((response (cl-neo4j:transaction-commit :transaction (transaction-id tr)))
-         (errors (cdr (assoc :errors response))))
-    (if errors
-        (error "error while beginning transaction: ~a" errors)
-        t)))
-
-(defmethod rollback-transaction ((tr transaction))
-  "Rollback open transaction `TRANSACTION'"
-  (let* ((response (cl-neo4j:transaction-rollback :transaction (transaction-id tr)))
-         (errors (cdr (assoc :errors response))))
-    (if errors
-        (error "error while rolling-back transaction: ~a" errors)
-        t)))
-
-(defmacro with-transaction (&body body)
-  `(let ((*transaction* (begin-transaction)))
-     ;; execute body
-     (unwind-protect
-          (prog1
-              (progn ,@body)
-            ;; if no errors - commit
-            (commit-transaction *transaction*))
-       (rollback-transaction *transaction*))))
-
-;; General queries
-
-#+Nil(defun query (query &optional properties)
-  (if (boundp '*transaction*)
-      (with-slots (id)
-          *transaction*
-        (cl-neo4j:cypher-query-in-transaction :statements
-                                              (list (make-instance 'cypher-query :statement query :properties properties))
-                                              :transaction id)
-        (cl-neo4j:transaction-keep-alive :transaction id))
-      (cl-neo4j:cypher-query :statements
-                             (list (make-instance 'cypher-query :statement query :properties properties)))))
-
-(defun query (query &optional properties)
-  (cl-neo4j:cypher-query :statements
-                         (list (make-instance 'cypher-query :statement query :properties properties))))
-
-
 ;; Nodes
 
 (defun create (labels properties &key initial-connections initial-indexes (constructor *default-node-constructor*))
@@ -107,10 +23,9 @@
    initial-indexes are list of lists of index name, key and value of indexes that node should be added to.
   label"
   (setf labels (ensure-list labels))
-
   (let* ((node (funcall constructor (create-node :properties (plist-alist properties)))))
     (mapc (lambda (label)
-            (cl-neo4j:set-node-label :node-id (node-id node) :label label)) labels)
+            (set-node-label :nodeid (node-id node) :label label)) labels)
     (mapc (curry #'apply
                    (lambda (target type direction)
                      (relationship-create node target type :direction direction)))
@@ -119,11 +34,12 @@
                  (lambda (index key value)
                    (node-add-to-index node index key value)))
           initial-indexes)
-    node))
+    ;; ask again for fresh data
+    (funcall constructor (get-node :nodeid (node-id node)))))
 
 (defun node-get-by-id (id &key (constructor *default-node-constructor*))
   "Returns a node with given id or nil otherwise. This is a factory method, it accepts keyword argument constructor whcih is defaulted to *default-node-constructor*"
-  (funcall constructor (get-node :node-id id)))
+  (funcall constructor (get-node :nodeid id)))
 
 (defgeneric node-delete (node &key)
   (:documentation "Deletes a node. Cascade deletes the node even if node had relationships (deleting them too).")
@@ -153,7 +69,7 @@
   (:documentation "Returns list of node relations, optionally filtered by list of possible types and direction. This is a factory method, accepts *default-node-constructor*")
   (:method ((node integer) &key (constructor *default-relationship-constructor*) types direction)
     (mapcar constructor
-            (get-node-relationships :node-id node :types types :direction direction))))
+            (get-node-relationships :nodeid node :types types :direction direction))))
 
 (defgeneric node-add-to-index (node index key value)
   (:documentation "Adds node to index with key and value.")
@@ -162,7 +78,7 @@
                   :name index
                   :key key
                   :value value
-                  :object-id node)))
+                  :objectid node)))
 
 (defgeneric node-remove-from-index (node index &optional key value)
   (:documentation "Removes node from index. Optionally removes only from index with key and value.")
@@ -190,10 +106,10 @@
   This is a factory method, it accepts keyword argument constructor which is defaulted to *default-node-constructor*"
   (declare (type string key))
   (handler-case
-      (mapcar constructor (cl-neo4j:query-label
-                                        :label-name label
-                                        :key key
-                                        :value (format nil "~s" value)))
+      (mapcar constructor (query-label
+                           :labelname label
+                           :key key
+                           :value (format nil "~s" value)))
     (index-entry-not-found-error () nil)))
 
 (defgeneric node-traverse (node &key order uniqueness relationships prune-evaluator return-filter max-depth)
@@ -221,9 +137,9 @@
               (:from (list node1 node2))
               (:to (list node2 node1)))
           (let ((relationship (funcall constructor
-                                       (create-relationship :node-id start
-                                                            :to-node-id end
-                                                            :relationship-type type
+                                       (create-relationship :nodeid1 start
+                                                            :nodeid2 end
+                                                            :type type
                                                             :properties (plist-alist properties)))))
             (mapc (curry #'apply
                          (lambda (index key value)
@@ -238,42 +154,41 @@
 (defgeneric relationship-delete (relationship)
   (:documentation "Deletes a relationship.")
   (:method ((relationship integer))
-    (delete-relationship :relationship-id relationship)))
+    (delete-relationship :relationshipid relationship)))
 
 (defgeneric relationship-start (relationship)
   (:documentation "Returns start node of relationship.")
   (:method ((relationship integer))
-    (node-get-by-id (extract-id-from-link
-                     (cdr (assoc :start (get-relationship :relationship-id relationship)))))))
+    (relationship-start-id (make-standard-relationship (get-relationship :relationshipid relationship)))))
 
 (defgeneric relationship-end (relationship)
   (:documentation "Returns end node of relationship.")
   (:method ((relationship integer))
-    (node-get-by-id (extract-id-from-link
-                     (cdr (assoc :end (get-relationship :relationship-id relationship)))))))
+    (relationship-end-id (make-standard-relationship (get-relationship :relationshipid relationship)))))
 
 (defgeneric relationship-type (relationship)
   (:documentation "Returns type of the relationship.")
   (:method ((relationship integer))
-    (cdr (assoc :type (get-relationship :relationship-id relationship)))))
+    (relationship-type (make-standard-relationship (get-relationship :relationshipid relationship)))))
 
 (defgeneric relationship-properties (relationship)
   (:documentation "Returns plist of relationship properties.")
   (:method ((relationship integer))
-    (get-relationship-properties :relationship-id relationship)))
+    (relationship-properties (make-standard-relationship (get-relationship :relationshipid relationship)))))
 
 (defgeneric relationship-property (relationship property)
   (:documentation "Returns value of the property of the relationship. Returns nil if property is undefined.")
   (:method ((relationship integer) property)
-    (get-relationship-property :relationship-id relationship
-                               :property property)))
+    (gethash "property"
+             (get-relationship-property :relationshipid relationship
+                                        :property property))))
 
 (defgeneric (setf relationship-property) (value relationship property)
   (:documentation "Sets a value of the property of the relationship to value. Value of nil deletes property.")
   (:method (value (relationship integer) property)
     (if value
-        (set-relationship-property :relationship-id relationship :property property :value value)
-        (del-relationship-property :relationship-id relationship :property property))))
+        (set-relationship-property :relationshipid relationship :property property :value value)
+        (del-relationship-property :relationshipid relationship :property property))))
 
 (defgeneric relationship-add-to-index (relationship index key value)
   (:documentation "Adds Relationship to index with key and value.")
@@ -334,11 +249,27 @@
   (print-unreadable-object (object stream :type t :identity '())
     (princ (node-id object) stream)))
 
-(defun make-standard-node (alist)
+(defun make-standard-node (ht)
   (make-instance 'standard-node
-                 :id (extract-id-from-link (cdr (assoc :self alist)))
-                 :properties (normalize-alist (cdr (assoc :data alist)))
-                 :labels (cdr (assoc :labels (cdr (assoc :metadata alist))))))
+                 :id (gethash "id" ht)
+                 :properties (normalize-alist (gethash "properties" ht))
+                 :labels (gethash "labels" ht)))
+
+(defun make-standard-node2 (data)
+  ;; handle both already filtered data and raw
+  (let ((data (if (cdr (assoc :results data))
+                  (cadr (assoc :data (cadr (assoc :results data))))
+                  data)))
+    (when data
+      (let* ((meta (cadr (assoc :meta data)))
+             (row (cadr (assoc :row data)))
+             (type (cdr (assoc :type meta))))
+        (when row
+          (cond
+            ((string= type "node")
+             (let ((id (cdr (assoc :id meta))))
+               (neo:node-get-by-id id)))
+            (t (error (format nil "Unknown item type returned from neo4j: `~A'" type)))))))))
 
 (defmethod node-delete ((node standard-node) &key cascade)
   (node-delete (node-id node) :cascade cascade))
@@ -387,13 +318,13 @@
             (relationship-type object)
             (%relationship-end-id object))))
 
-(defun make-standard-relationship (alist)
+(defun make-standard-relationship (ht)
   (make-instance 'standard-relationship
-                 :id (extract-id-from-link (cdr (assoc :self alist)))
-                 :properties (normalize-alist (cdr (assoc :data alist)))
-                 :type (cdr (assoc :type alist))
-                 :start (extract-id-from-link (cdr (assoc :start alist)))
-                 :end (extract-id-from-link (cdr (assoc :end alist)))))
+                 :id (gethash "id" ht)
+                 :properties (normalize-alist (gethash "properties" ht))
+                 :type (gethash "type" ht)
+                 :start (gethash "startnodeid" ht)
+                 :end (gethash "endnodeid" ht)))
 
 (defmethod relationship-create ((node1 standard-node) (node2 standard-node) type &rest keys)
   (apply #'relationship-create (node-id node1) (node-id node2) type keys))

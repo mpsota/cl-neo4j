@@ -28,7 +28,10 @@
              (:file "conditions" :depends-on ("utilities"))
              (:file "requests" :depends-on ("conditions" "query" "globals"))
              (:file "restapi" :depends-on ("requests"))
-             (:file "wrapper" :depends-on ("restapi"))))))
+             (:file "wrapper-transaction" :depends-on ("utilities" "restapi"))
+             (:file "query-restapi" :depends-on ("utilities" "wrapper-transaction"))
+             (:file "wrapper" :depends-on ("wrapper-transaction" "query-restapi"))
+             ))))
 
 (defsystem cl-neo4j.tests
   :depends-on  (:cl-neo4j

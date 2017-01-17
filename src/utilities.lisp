@@ -68,3 +68,50 @@
 
 (defun urlencode (string)
   (cl-ppcre:regex-replace "\\+" (drakma::url-encode string :latin1) "%20"))
+
+(defun handle-neo4j-query-error (retval)
+  (let* ((errors (cdr (assoc :errors retval))))
+    (if errors
+        (error (format nil "Error during cypher-query: `~A'" errors))
+        retval)))
+
+(defmacro make-statement (query params)
+  (let ((params-bindings (mapcar (lambda (param)
+                                   `(cons ,(format nil "~A" param) ,param))
+                                 params)))
+    `(let* ((statement (list (cons :query ,query)
+                             (cons :params (list ,@params-bindings)))))
+       statement)))
+
+(defun neo4j-response-to-hashtable (retval &optional extract-keys apply-fun)
+  (let* ((response (handle-neo4j-query-error retval))
+         (results (cadr (assoc :results response)))
+         (columns (cdr (assoc :columns results)))
+         (data (cdr (assoc :data results)))
+         (rows (mapcar (lambda (x)
+                         (cdr (assoc :row x)))
+                       data))
+         ;; prepare hashatble
+         (retval1 (mapcar (lambda (row)
+                           (loop
+                              with ht = (make-hash-table :test 'equal)
+                              for key in columns
+                              for value in row
+                              do
+                                (setf (gethash key ht) value)
+                              finally
+                                (return ht)))
+                         rows))
+         ;; extract keys if requested
+         (retval2 (if extract-keys
+                      (mapcar (lambda (ht)
+                                (mapcar (lambda (key)
+                                          (gethash key ht))
+                                        extract-keys))
+                              retval1)
+                      retval1))
+         ;; apply fun if requested
+         (retval3 (if apply-fun
+                      (funcall apply-fun retval2)
+                      retval2)))
+    retval3))
