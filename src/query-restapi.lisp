@@ -10,7 +10,7 @@
                                        lambda-list &body body)
   `(defun ,name (&key ,@lambda-list)
      ,(if produce-ht
-          `(neo4j-response-to-hashtable 
+          `(neo4j-response-to-hashtable
             (progn ,@body)
             ',extract-keys
             ,apply-fun)
@@ -112,7 +112,7 @@
 (def-neo4j-query-fun set-relationship-property () (relationshipid property value)
   ;; property name cannot be parametrized
   (let* ((property-name (string-sanitize property))
-         (statement (make-statement (format nil "MATCH ()-[rel]-() WHERE id(rel)={RELATIONSHIPID} SET rel.~A={VALUE}" property-name) (relationshipid value))))
+         (statement (make-statement (format nil "MATCH ()-[rel]-() WHERE id(rel)={RELATIONSHIPID} SET rel.`~A`={VALUE}" property-name) (relationshipid value))))
     (query-statement statement)))
 
 (def-neo4j-query-fun del-relationship-property () (relationshipid property)
@@ -153,7 +153,7 @@
 (def-neo4j-query-fun set-node-property () (nodeid property value)
   ;; property name cannot be parametrized
   (let* ((property-name (string-sanitize property))
-         (statement (make-statement (format nil "MATCH (n) WHERE id(n)={NODEID} SET n.~A={VALUE}" property-name) (nodeid value))))
+         (statement (make-statement (format nil "MATCH (n) WHERE id(n)={NODEID} SET n.`~A`={VALUE}" property-name) (nodeid value))))
     (query-statement statement)))
 
 (def-neo4j-query-fun del-node-property () (nodeid property)

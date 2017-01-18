@@ -21,7 +21,7 @@
 
 (defun begin-transaction ()
   "Begins new transaction and returns object of class `TRANSACTION'"
-  
+
   (let* ((response (cl-neo4j:transaction-begin))
          (errors (cdr (assoc :errors response)))
          (commit (cdr (assoc :commit response)))
@@ -66,7 +66,10 @@
            ;; if no errors - commit
            (commit-transaction *transaction*))
        (error (c)
-         (rollback-transaction *transaction*)
+         (handler-case
+             (rollback-transaction *transaction*)
+           (error (d)
+             (format *debug-io* "Error while rolling back trasnaction: ~A" d)))
          (error c)))))
 
 ;; General queries
@@ -75,13 +78,14 @@
   (if (boundp '*transaction*)
       (with-slots (id)
           *transaction*
+        (prog1
         (handle-neo4j-query-error
          (cl-neo4j:cypher-query-in-transaction :statements
                                                (list (make-instance 'cypher-query
                                                                     :statement query
                                                                     :properties properties))
                                                :transaction id))
-        (cl-neo4j:transaction-keep-alive :transaction id))
+          (cl-neo4j:transaction-keep-alive :transaction id)))
       (handle-neo4j-query-error
        (cl-neo4j:cypher-query :statements
                               (list (make-instance 'cypher-query
@@ -104,10 +108,9 @@
                                                                             :parameters params))
                                                        :transaction id))
               (cl-neo4j:transaction-keep-alive :transaction id)))
-    
+
            (cl-neo4j:cypher-query :statements
                                   (list (make-instance 'cypher-query
                                                        :statement query
                                                        :properties properties
                                                        :parameters params)))))))
-
