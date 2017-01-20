@@ -68,12 +68,18 @@
          (statement (make-statement (format nil "MATCH (n) WHERE id(n)={NODEID} SET n :~A" label-name) (nodeid))))
     (query-statement statement)))
 
-(def-neo4j-query-fun create-relationship () (nodeid1 nodeid2 type properties)
+(def-neo4j-query-fun create-relationship (:apply-fun 'car) (nodeid1 nodeid2 type properties)
   ;; seems like relation type also can not be parametrized
   (let* ((rel-type (string-trim ";: \"'" type))
-         (properties (or properties "")) ;; put empty string in case there are no properties to avoid inserting NIL
-         (statement (make-statement (format nil "MATCH (n1) WHERE id(n1)={NODEID1} MATCH (n2) WHERE id(n2)={NODEID2} CREATE (n1)-[:~A {PROPERTIES}]->(n2)"
-                                            rel-type)
+         ;; put empty string in case there are no properties to avoid inserting NIL
+         (properties-parameter (if properties
+                                   "{PROPERTIES}"
+                                   ""))
+         (properties (if properties
+                         "{PROPERTIES}"
+                         ""))
+         (statement (make-statement (format nil "MATCH (n1) WHERE id(n1)={NODEID1} MATCH (n2) WHERE id(n2)={NODEID2} CREATE (n1)-[r:~A ~A]->(n2) RETURN r"
+                                            rel-type properties-parameter)
                                     (nodeid1 nodeid2 properties))))
     (query-statement statement)))
 
