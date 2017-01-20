@@ -71,6 +71,7 @@
 (def-neo4j-query-fun create-relationship () (nodeid1 nodeid2 type properties)
   ;; seems like relation type also can not be parametrized
   (let* ((rel-type (string-trim ";: \"'" type))
+         (properties (or properties "")) ;; put empty string in case there are no properties to avoid inserting NIL
          (statement (make-statement (format nil "MATCH (n1) WHERE id(n1)={NODEID1} MATCH (n2) WHERE id(n2)={NODEID2} CREATE (n1)-[:~A {PROPERTIES}]->(n2)"
                                             rel-type)
                                     (nodeid1 nodeid2 properties))))
