@@ -46,7 +46,7 @@
   (:method ((node integer) &key cascade)
     (when cascade
       (mapc #'relationship-delete (node-relationships node)))
-    (delete-node :node-id node)))
+    (delete-node :nodeid node)))
 
 (defgeneric node-properties (node)
   (:documentation "Returns plist of properties of the node.")
