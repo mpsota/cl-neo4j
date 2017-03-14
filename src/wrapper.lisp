@@ -51,19 +51,19 @@
 (defgeneric node-properties (node)
   (:documentation "Returns plist of properties of the node.")
   (:method ((node integer))
-    (get-node-properties :node-id node)))
+    (get-node-properties :nodeid node)))
 
 (defgeneric node-property (node property)
   (:documentation "Returns value of the property of the node. Returns nil if property is undefined.")
   (:method ((node integer) property)
-    (get-node-property :node-id node :property property)))
+    (get-node-property :nodeid node :property property)))
 
 (defgeneric (setf node-property) (value node property)
   (:documentation "Sets a value of the property of the node to value. Value of nil deletes property.")
   (:method (value (node integer) property)
     (if value
-        (set-node-property :node-id node :property property :value value)
-        (del-node-property :node-id node :property property))))
+        (set-node-property :nodeid node :property property :value value)
+        (del-node-property :nodeid node :property property))))
 
 (defgeneric node-relationships (node &key types direction)
   (:documentation "Returns list of node relations, optionally filtered by list of possible types and direction. This is a factory method, accepts *default-node-constructor*")
@@ -87,7 +87,7 @@
                        :name index
                        :key key
                        :value value
-                       :object-id node)))
+                       :objectid node)))
 
 (defun node-query-index (index key value &key (constructor *default-node-constructor*))
   "Returns list of nodes in the index with key and value.
@@ -149,7 +149,7 @@
 
 (defun relationship-get-by-id (id &key (constructor *default-node-constructor*))
   "Returns relationship with given id or nil otherwise."
-  (funcall constructor (get-relationship :relationship-id id)))
+  (funcall constructor (get-relationship :relationshipid id)))
 
 (defgeneric relationship-delete (relationship)
   (:documentation "Deletes a relationship.")
@@ -197,7 +197,7 @@
                   :name index
                   :key key
                   :value value
-                  :object-id relationship)))
+                  :objectid relationship)))
 
 (defgeneric relationship-remove-from-index (relationship index &optional key value)
   (:documentation "Removes relationship from index. Optionally removes only from index with key and value.")
@@ -206,7 +206,7 @@
                        :name index
                        :key key
                        :value value
-                       :object-id relationship)))
+                       :objectid relationship)))
 
 (defun relationship-query-index (index key value &key (constructor *default-relationship-constructor*))
   "Returns list of nodes in the index with key and value."
@@ -279,7 +279,7 @@
 
 (defmethod (setf node-property) (value (node standard-node) property)
   (setf (node-property (node-id node) property) value)
-  (setf (node-properties node) (normalize-alist (get-node-properties :node-id (node-id node)))))
+  (setf (node-properties node) (normalize-alist (get-node-properties :nodeid (node-id node)))))
 
 (defmethod node-relationships ((node standard-node) &key types direction)
   (node-relationships (node-id node) :types types :direction direction))
@@ -350,7 +350,7 @@
 (defmethod (setf relationship-property) (value (relationship standard-relationship) property)
   (setf (relationship-property (relationship-id relationship) property) value)
   (setf (relationship-properties relationship)
-        (normalize-alist (get-relationship-properties :relationship-id (relationship-id relationship)))))
+        (normalize-alist (get-relationship-properties :relationshipid (relationship-id relationship)))))
 
 (defmethod relationship-add-to-index ((relationship standard-relationship) index key value)
   (relationship-add-to-index (relationship-id relationship) index key value))
