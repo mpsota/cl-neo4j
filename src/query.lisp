@@ -8,23 +8,27 @@
    (properties :accessor properties :initform nil :initarg :properties)
    ;; `parameters' has been added - `properties' will be appended to
    ;; it so it should not break backward compatibility
-   (parameters :accessor parameters :initform nil :initarg :parameters)))
+   (parameters :accessor parameters :initform nil :initarg :parameters)
+   (include-stats :accessor include-stats :initform nil :initarg :include-stats)))
 
 (defmethod structure-cypher-query ((q cypher-query))
-  (with-slots (statement properties parameters) q
+  (with-slots (statement properties parameters include-stats) q
     ;; append `properties' to `parameters' with key `params'
     (let ((parameters (append parameters (when properties `(("props" ,@properties))))))
       `(("statement" ,@(statement q))
+        ,@(when include-stats
+                `(("includeStats" ,@include-stats)))
         ,@(when parameters
                 `(("parameters" ,@parameters)))))))
 
 (defmethod encode-cypher-query ((q cypher-query))
   (json:encode-json-alist-to-string (structure-cypher-query q)))
 
-(defun make-query (statement &key properties parameters)
+(defun make-query (statement &key properties parameters include-stats)
   (let ((q (make-instance 'cypher-query
                           :statement statement
                           :properties properties
                           :parameters parameters
+                          :include-stats include-stats
                           )))
     q))

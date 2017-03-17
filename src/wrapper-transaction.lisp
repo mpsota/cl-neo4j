@@ -74,7 +74,7 @@
 
 ;; General queries
 
-(defun query (query &optional properties)
+(defun query (query &optional properties include-stats)
   (if (boundp '*transaction*)
       (with-slots (id)
           *transaction*
@@ -83,16 +83,18 @@
          (cl-neo4j:cypher-query-in-transaction :statements
                                                (list (make-instance 'cypher-query
                                                                     :statement query
-                                                                    :properties properties))
+                                                                    :properties properties
+                                                                    :include-stats include-stats))
                                                :transaction id))
           (cl-neo4j:transaction-keep-alive :transaction id)))
       (handle-neo4j-query-error
        (cl-neo4j:cypher-query :statements
                               (list (make-instance 'cypher-query
                                                    :statement query
-                                                   :properties properties))))))
+                                                   :properties properties
+                                                   :include-stats include-stats))))))
 
-(defun query-statement (statement &optional properties)
+(defun query-statement (statement &optional properties include-stats)
   (let ((query (cdr (assoc :query statement)))
         (params (cdr (assoc :params statement))))
     (when query
@@ -105,7 +107,8 @@
                                                        (list (make-instance 'cypher-query
                                                                             :statement query
                                                                             :properties properties
-                                                                            :parameters params))
+                                                                            :parameters params
+                                                                            :include-stats include-stats))
                                                        :transaction id))
               (cl-neo4j:transaction-keep-alive :transaction id)))
 
@@ -113,4 +116,5 @@
                                   (list (make-instance 'cypher-query
                                                        :statement query
                                                        :properties properties
-                                                       :parameters params)))))))
+                                                       :parameters params
+                                                       :include-stats include-stats)))))))
