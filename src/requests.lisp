@@ -21,7 +21,6 @@
   ;; TODO use keywords instead of &rest args.
   `(defun ,name (&key (request-handler *default-request-handler*) ,@lambda-list)
      (let ((uri ,(cadr (assoc :uri-spec args)))
-           (parameters ,(cadr (assoc :parameters args)))
            (json ,(aif (assoc :encode args)
                         `(encode-neo4j-json-payload ,@(cdr it))
                         nil))) ;; (list '() :string) -> "null"
@@ -32,21 +31,18 @@
                                                                      (progn
                                                                        ,@(cdr handler)))))
                                            (cdr (assoc :status-handlers args))))
-                           :request-handler request-handler
-                           :parameters parameters))))
+                           :request-handler request-handler))))
 
 (defstruct (neo4j-request (:constructor %make-neo4j-request)
                           (:conc-name request-))
   method
   uri
-  payload
-  parameters)
+  payload)
 
-(defun make-neo4j-request (method uri payload error-handlers &key parameters (request-handler *default-request-handler*))
+(defun make-neo4j-request (method uri payload error-handlers &key (request-handler *default-request-handler*))
   (handle-request request-handler (%make-neo4j-request :method method
                                                        :uri uri
-                                                       :payload payload
-                                                       :parameters parameters)
+                                                       :payload payload)
                   error-handlers))
 
 (defgeneric send-request (handler request)
@@ -61,38 +57,71 @@
   (:documentation "Closes the handler. Handler should do finalization operarions - batch handler sends the request at this point."))
 
 (defclass basic-handler ()
-  ((protocol :initarg :protocol :accessor protocol :initform :http/1.1)
-   (host :initarg :host :accessor handler-host :initform *neo4j-host*)
+  ((host :initarg :host :accessor handler-host :initform *neo4j-host*)
    (port :initarg :port :accessor handler-port :initform *neo4j-port*)
    (user :initarg :user :accessor handler-user :initform *neo4j-user*)
    (pass :initarg :pass :accessor handler-pass :initform *neo4j-pass*))
   (:documentation "Basic handler that just sends request to the database."))
 
 (defun basic-handler (&key (host *neo4j-host*) (port *neo4j-port*)
-                        (user *neo4j-user*) (pass *neo4j-pass*) (protocol :http/1.1))
+                        (user *neo4j-user*) (pass *neo4j-pass*))
   (make-instance 'basic-handler
                  :host host
                  :port port
                  :user user
-                 :pass pass
-                 :protocol protocol))
+                 :pass pass))
 
-(defmethod send-request ((handler basic-handler) request)
-  (with-accessors ((method request-method) (uri request-uri) (payload request-payload) (parameters request-parameters))
+#+deprecated
+(defmethod send-request* ((handler basic-handler) request)
+  (with-accessors ((method request-method) (uri request-uri) (payload request-payload))
       request
     (multiple-value-bind (body status)
         (http-request (format-neo4j-query (handler-host handler)
                                           (handler-port handler)
                                           uri)
                       :method method
-                      :protocol (protocol handler)
+                      :protocol "http/1.1"
                       :basic-authorization (list (handler-user handler)
                                                  (handler-pass handler))
-                      :parameters parameters
                       :content payload
-                      :content-type (if payload "application/json")
+                      :content-type "application/json"
+                      :additional-headers '(("X-Stream" . "true"))
                       :accept "application/json; charset=UTF-8")
       (values status body))))
+
+#+deprecated
+(defmethod send-request** ((handler basic-handler) request)
+  (with-accessors ((method request-method) (uri request-uri) (payload request-payload) (parameters request-parameters))
+      request
+    (multiple-value-bind (body status)
+        (curl:)
+        (curl:with-connection-returning-string (:cookies nil)
+          (curl:set-option :url (format-neo4j-query (handler-host handler)
+                                                    (handler-port handler)
+                                                    uri))
+          (curl:set-option :username (handler-user handler))
+          (curl:set-option :password (handler-pass handler))
+          (curl:set-header "Content-Type: application/json")
+          (curl:set-header "X-Stream: true")
+          (curl:set-option :postfields payload)
+          (curl:perform))
+      (values status body))))
+
+(defmethod send-request ((handler basic-handler) request)
+  (with-accessors ((method request-method) (uri request-uri) (payload request-payload))
+      request
+    (multiple-value-bind (body status)
+        (curl:http-request (format-neo4j-query (handler-host handler)
+                                               (handler-port handler)
+                                               uri)
+                           :method method
+                           :content payload
+                           :content-type "application/json"
+                           :basic-authorization (list (handler-user handler)
+                                                      (handler-pass handler))
+                           :additional-headers '("X-Stream: true"))
+      (values status body))))
+
 (defmethod handle-request ((handler basic-handler) request error-handlers)
   (multiple-value-bind (status body) (send-request handler request)
     (aif (assoc status error-handlers)

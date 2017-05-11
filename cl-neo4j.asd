@@ -16,7 +16,8 @@
                :drakma
                :babel
                :cl-json
-               :cl-ppcre)
+               :cl-ppcre
+               :curl)
   :components
   ((:module "src"
             :serial t

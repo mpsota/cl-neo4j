@@ -64,7 +64,9 @@
   (format nil "~A" object))
 
 (defun decode-neo4j-json-output (json)
-  (decode-json-from-string (babel:octets-to-string json)))
+  (etypecase json
+    ((vector (unsigned-byte 8)) (decode-json-from-string (babel:octets-to-string json)))
+    (string (decode-json-from-string json))))
 
 (defun urlencode (string)
   (cl-ppcre:regex-replace "\\+" (drakma::url-encode string :latin1) "%20"))
