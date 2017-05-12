@@ -3,6 +3,7 @@
 (in-package :cl-neo4j)
 
 (defvar *default-request-handler*)
+(defvar *connection-timeout* 60)
 
 (defmacro set-request-handler (handler)
   "globally binds `*default-request-handler*'"
@@ -84,6 +85,7 @@
                       :basic-authorization (list (handler-user handler)
                                                  (handler-pass handler))
                       :content payload
+                      :connect-timeout *connection-timeout*
                       :content-type "application/json"
                       :additional-headers '(("X-Stream" . "true"))
                       :accept "application/json; charset=UTF-8")
@@ -114,6 +116,7 @@
         (curl:http-request (format-neo4j-query (handler-host handler)
                                                (handler-port handler)
                                                uri)
+                           :connect-timeout *connection-timeout*
                            :method method
                            :content payload
                            :content-type "application/json"
