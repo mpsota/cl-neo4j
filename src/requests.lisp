@@ -116,7 +116,7 @@
         (curl:http-request (format-neo4j-query (handler-host handler)
                                                (handler-port handler)
                                                uri)
-                           :connect-timeout *connection-timeout*
+                           :connection-timeout *connection-timeout*
                            :method method
                            :content payload
                            :content-type "application/json"
