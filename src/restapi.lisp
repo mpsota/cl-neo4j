@@ -69,3 +69,13 @@
    (200 (decode-neo4j-json-output body))
    (401 (error 'unauthorised-error))
    (404 (error 'node-not-found-error :uri uri))))
+
+#+cl-neo4j-drakma
+(def-neo4j-fun query (statement)
+  :post
+  (:uri-spec "cypher")
+  (:encode statement :string)
+  (:status-handlers
+   (200 (decode-neo4j-json-output body))
+   (400 (babel:octets-to-string body))
+   (404 (error 'node-not-found-error :uri uri))))

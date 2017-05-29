@@ -22,6 +22,7 @@
   ;; TODO use keywords instead of &rest args.
   `(defun ,name (&key (request-handler *default-request-handler*) ,@lambda-list)
      (let ((uri ,(cadr (assoc :uri-spec args)))
+           #+cl-neo4j-drakma(parameters ,(cadr (assoc :parameters args)))
            (json ,(aif (assoc :encode args)
                         `(encode-neo4j-json-payload ,@(cdr it))
                         nil))) ;; (list '() :string) -> "null"
@@ -32,18 +33,21 @@
                                                                      (progn
                                                                        ,@(cdr handler)))))
                                            (cdr (assoc :status-handlers args))))
-                           :request-handler request-handler))))
+                           :request-handler request-handler
+                           #+cl-neo4j-drakma :parameters #+cl-neo4j-drakma parameters))))
 
 (defstruct (neo4j-request (:constructor %make-neo4j-request)
                           (:conc-name request-))
   method
   uri
-  payload)
+  payload
+  parameters)
 
-(defun make-neo4j-request (method uri payload error-handlers &key (request-handler *default-request-handler*))
+(defun make-neo4j-request (method uri payload error-handlers &key parameters (request-handler *default-request-handler*))
   (handle-request request-handler (%make-neo4j-request :method method
                                                        :uri uri
-                                                       :payload payload)
+                                                       :payload payload
+                                                       :parameters parameters)
                   error-handlers))
 
 (defgeneric send-request (handler request)
@@ -109,6 +113,7 @@
           (curl:perform))
       (values status body))))
 
+#-cl-neo4j-drakma
 (defmethod send-request ((handler basic-handler) request)
   (with-accessors ((method request-method) (uri request-uri) (payload request-payload))
       request
@@ -123,6 +128,24 @@
                            :basic-authorization (list (handler-user handler)
                                                       (handler-pass handler))
                            :additional-headers '("X-Stream: true"))
+      (values status body))))
+
+#+cl-neo4j-drakma
+(defmethod send-request ((handler basic-handler) request)
+  (with-accessors ((method request-method) (uri request-uri) (payload request-payload) (parameters request-parameters))
+      request
+    (multiple-value-bind (body status)
+        (http-request (format-neo4j-query (handler-host handler)
+                                          (handler-port handler)
+                                          uri)
+                      :method method
+                      :protocol :http/1.1
+                      :basic-authorization (list (handler-user handler)
+                                                 (handler-pass handler))
+                      :parameters parameters
+                      :content payload
+                      :content-type (if payload "application/json")
+                      :accept "application/json; charset=UTF-8")
       (values status body))))
 
 (defmethod handle-request ((handler basic-handler) request error-handlers)
