@@ -58,14 +58,17 @@
         t)))
 
 (defmacro with-transaction (&body body)
-  `(let ((*transaction* (or *transaction*
-                            (begin-transaction))))
+  `(let* ((transaction-in-progress? (boundp '*transaction*))
+          (*transaction* (if transaction-in-progress?
+                             *transaction*
+                             (begin-transaction))))
      ;; execute body
      (handler-case
          (prog1
              (progn ,@body)
-           ;; if no errors - commit
-           (commit-transaction *transaction*))
+           ;; if no errors and there was no transaction in progress already - commit
+           (unless transaction-in-progress?
+             (commit-transaction *transaction*)))
        (error (c)
          (handler-case
              (rollback-transaction *transaction*)
