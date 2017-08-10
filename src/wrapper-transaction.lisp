@@ -58,7 +58,8 @@
         t)))
 
 (defmacro with-transaction (&body body)
-  `(let ((*transaction* (begin-transaction)))
+  `(let ((*transaction* (or *transaction*
+                            (begin-transaction))))
      ;; execute body
      (handler-case
          (prog1
