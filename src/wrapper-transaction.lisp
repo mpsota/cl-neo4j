@@ -88,7 +88,8 @@
        (cl-neo4j:cypher-query :statements
                               (list (make-instance 'cypher-query
                                                    :statement query
-                                                   :include-stats include-stats))))))
+                                                   :include-stats include-stats))))
+   :query (list :query query)))
 
 (defun query-statement (statement &optional include-stats)
   (let ((query (cdr (assoc :query statement)))
@@ -109,4 +110,5 @@
                                   (list (make-instance 'cypher-query
                                                        :statement query
                                                        :parameters params
-                                                       :include-stats include-stats))))))))
+                                                       :include-stats include-stats)))))
+     :query (list :query query :params params))))
