@@ -71,10 +71,50 @@
 (defun urlencode (string)
   (cl-ppcre:regex-replace "\\+" (drakma::url-encode string :latin1) "%20"))
 
-(defun handle-neo4j-query-error (retval)
+(defun geta (item alist &key (test #'eq))
+  "get value of item from association list"
+  (cdr (assoc item alist :test test)))
+
+;; Error handling
+
+(define-condition neo4j-error (error)
+  ((code :initarg :code :reader code)
+   (message :initarg :message :reader message)
+   (problematic-query :initarg :problematic-query :reader problematic-query))
+  (:report (lambda (condition stream)
+             (with-slots (code message problematic-query) condition
+               (format stream "ERROR: ~A~%~A~%~%~S"
+                       code
+                       message
+                       problematic-query)))))
+
+(define-condition neo4j-error-retry (neo4j-error) ()
+  (:report (lambda (condition stream)
+             (with-slots (code message problematic-query) condition
+               (format stream "RETRY: ~A~%~A~%~%~S"
+                       code
+                       message
+                       problematic-query)))))
+
+(defun make-neo4j-condition (&key code message problematic-query)
+  (assert (stringp code))
+  (let ((condition-type
+          (alexandria:switch (code :test #'string=)
+            ("Neo.TransientError.Transaction.DeadlockDetected" 'neo4j-error-retry)
+            (t 'neo4j-error))))
+    (make-condition condition-type
+                    :code code
+                    :message message
+                    :problematic-query problematic-query)))
+
+(defun handle-neo4j-query-error (retval &key (query nil))
   (let* ((errors (cdr (assoc :errors retval))))
     (if errors
-        (error (format nil "Error during cypher-query: `~A'" errors))
+        (let ((code (geta :code (car errors)))
+              (message (geta :message (car errors))))
+          (error (make-neo4j-condition :code code
+                                       :message message
+                                       :problematic-query query)))
         retval)))
 
 (defmacro make-statement (query params)
