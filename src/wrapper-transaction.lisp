@@ -58,17 +58,13 @@
         t)))
 
 (defmacro with-transaction (&body body)
-  `(let* ((transaction-in-progress? (boundp '*transaction*))
-          (*transaction* (if transaction-in-progress?
-                             *transaction*
-                             (begin-transaction))))
+  `(let ((*transaction* (begin-transaction)))
      ;; execute body
      (handler-case
          (prog1
              (progn ,@body)
-           ;; if no errors and there was no transaction in progress already - commit
-           (unless transaction-in-progress?
-             (commit-transaction *transaction*)))
+           ;; if no errors - commit
+           (commit-transaction *transaction*))
        (error (c)
          (handler-case
              (rollback-transaction *transaction*)
@@ -79,18 +75,16 @@
 ;; General queries
 
 (defun query (query &optional include-stats)
-  (if (boundp '*transaction*)
-      (with-slots (id)
-          *transaction*
-        (prog1
-        (handle-neo4j-query-error
-         (cl-neo4j:cypher-query-in-transaction :statements
-                                               (list (make-instance 'cypher-query
-                                                                    :statement query
-                                                                    :include-stats include-stats))
-                                               :transaction id))
-          (cl-neo4j:transaction-keep-alive :transaction id)))
-      (handle-neo4j-query-error
+  (handle-neo4j-query-error
+   (if (boundp '*transaction*)
+       (with-slots (id) *transaction*
+         (prog1
+             (cl-neo4j:cypher-query-in-transaction :statements
+                                                   (list (make-instance 'cypher-query
+                                                                        :statement query
+                                                                        :include-stats include-stats))
+                                                   :transaction id)
+           (cl-neo4j:transaction-keep-alive :transaction id)))
        (cl-neo4j:cypher-query :statements
                               (list (make-instance 'cypher-query
                                                    :statement query
@@ -99,22 +93,20 @@
 (defun query-statement (statement &optional include-stats)
   (let ((query (cdr (assoc :query statement)))
         (params (cdr (assoc :params statement))))
-    (when query
-      (if (boundp '*transaction*)
-          (with-slots (id)
-              *transaction*
-            (prog1
-                (handle-neo4j-query-error
+    (handle-neo4j-query-error
+     (when query
+       (if (boundp '*transaction*)
+           (with-slots (id) *transaction*
+             (prog1
                  (cl-neo4j:cypher-query-in-transaction :statements
                                                        (list (make-instance 'cypher-query
                                                                             :statement query
                                                                             :parameters params
                                                                             :include-stats include-stats))
-                                                       :transaction id))
-              (cl-neo4j:transaction-keep-alive :transaction id)))
-
+                                                       :transaction id)
+               (cl-neo4j:transaction-keep-alive :transaction id)))
            (cl-neo4j:cypher-query :statements
                                   (list (make-instance 'cypher-query
                                                        :statement query
                                                        :parameters params
-                                                       :include-stats include-stats)))))))
+                                                       :include-stats include-stats))))))))

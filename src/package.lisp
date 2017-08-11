@@ -63,8 +63,10 @@
            #:index-not-found-error
            #:index-entry-not-found-error
            #:path-not-found-error
-           #:*neo4j-host*
+           #:neo4j-errror
+           #:neo4j-error-retry
            ;; Vars
+           #:*neo4j-host*
            #:*neo4j-port*
            #:*neo4j-user*
            #:*neo4j-pass*
@@ -133,6 +135,7 @@
            #:relationship-id
 
            #:node-labels
-                                        ;: Vars
+           ;; Vars
            #:*default-node-constructor*
-           #:*default-relationship-constructor*))
+           #:*default-relationship-constructor*
+           ))
