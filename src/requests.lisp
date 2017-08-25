@@ -3,7 +3,7 @@
 (in-package :cl-neo4j)
 
 (defvar *default-request-handler*)
-(defvar *connection-timeout* 60)
+(defvar *connection-timeout* 120)
 
 (defmacro set-request-handler (handler)
   "globally binds `*default-request-handler*'"
