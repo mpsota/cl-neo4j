@@ -257,14 +257,13 @@
 
 (defun make-standard-node2 (data)
   ;; handle both already filtered data and raw
-  (let ((data (if (cdr (assoc :results data))
-                  (cadr (assoc :data (cadr (assoc :results data))))
-                  data)))
-    (when data
+  (when data
+    (let ((data (if (cdr (assoc :results data))
+                    (cadr (assoc :data (cadr (assoc :results data))))
+                    data)))
       (let* ((meta (cadr (assoc :meta data)))
-             (row (cadr (assoc :row data)))
              (type (cdr (assoc :type meta))))
-        (when row
+        (when meta
           (cond
             ((string= type "node")
              (let ((id (cdr (assoc :id meta))))
