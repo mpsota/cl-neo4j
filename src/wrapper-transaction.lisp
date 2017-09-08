@@ -98,21 +98,21 @@
 (defun query-statement (statement &optional include-stats)
   (let ((query (cdr (assoc :query statement)))
         (params (cdr (assoc :params statement))))
-    (handle-neo4j-query-error
      (when query
        (if (boundp '*transaction*)
            (with-slots (id) *transaction*
-             (prog1
-                 (cl-neo4j:cypher-query-in-transaction :statements
-                                                       (list (make-instance 'cypher-query
-                                                                            :statement query
-                                                                            :parameters params
-                                                                            :include-stats include-stats))
-                                                       :transaction id)
+             (prog1 (handle-neo4j-query-error
+                     (cl-neo4j:cypher-query-in-transaction :statements
+                                                           (list (make-instance 'cypher-query
+                                                                                :statement query
+                                                                                :parameters params
+                                                                                :include-stats include-stats))
+                                                           :transaction id)
+                     :query (list :query query :params params))
                (cl-neo4j:transaction-keep-alive :transaction id)))
-           (cl-neo4j:cypher-query :statements
-                                  (list (make-instance 'cypher-query
-                                                       :statement query
-                                                       :parameters params
-                                                       :include-stats include-stats)))))
-     :query (list :query query :params params))))
+           (handle-neo4j-query-error (cl-neo4j:cypher-query :statements
+                                                            (list (make-instance 'cypher-query
+                                                                                 :statement query
+                                                                                 :parameters params
+                                                                                 :include-stats include-stats)))
+                                     :query (list :query query :params params))))))
