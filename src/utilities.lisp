@@ -75,6 +75,14 @@
   "get value of item from association list"
   (cdr (assoc item alist :test test)))
 
+(defun car* (list)
+  "Like car, but assert that there is no cdr"
+  (assert (listp list))
+  (assert (null (cdr list))
+          nil
+          "~S is expected to be one element long" list)
+  (car list))
+
 ;; Error handling
 
 (define-condition neo4j-error (error)

@@ -222,16 +222,18 @@
   (:method ((node integer) &rest keys &key (constructor *default-relationship-constructor*) &allow-other-keys)
     (mapcar constructor (apply #'traverse :node-id node :return-type :relationship keys))))
 
-
 ;;; Implementation
 
 (defun extract-id-from-link (link)
   (parse-integer (car (split-sequence #\/ link :from-end t :count 1))))
 
 (defun normalize-alist (alist)
+  ;; (print alist)
   (mapcar (lambda (el)
-            (cons (json:lisp-to-camel-case (symbol-name (car el)))
-                  (cdr el)))
+            (if (listp (car el))
+                (normalize-alist el);; looks wrong...
+                (cons (json:lisp-to-camel-case (symbol-name (car el)))
+                      (cdr el))))
           alist))
 
 (defclass standard-node ()
@@ -255,20 +257,70 @@
                  :properties (normalize-alist (gethash "properties" ht))
                  :labels (gethash "labels" ht)))
 
+(defclass composite-node (standard-node)
+  ()
+  (:documentation "Similar to standard-node, but could be build from few different nodes/ properties. Node of this class doesn't have node-id nor node-labels, as it is not created just from 1 node (or might not be)."))
+
+(defmethod node-id ((node composite-node))
+  (error "No node-id for composite-node - node is the composition of different nodes, with different node ids"))
+
+(defmethod node-labels ((node composite-node))
+  (error "No node-labels for composite-node - node is the composition of different nodes, with different node labels"))
+
+(defmethod print-object ((object composite-node) stream)
+  (print-unreadable-object (object stream :type t :identity '())
+    (format stream "<NO NODE-ID>")))
+
 (defun make-standard-node2 (data)
-  ;; handle both already filtered data and raw
+  ;; handle both already filtered data and raw, bases on node.id and extract all slots in node with given node.id.
+  ;; if more than 1 node in meta - return all of them.
   (when data
-    (let ((data (if (cdr (assoc :results data))
+    (let ((data (if (geta :results data)
                     (cadr (assoc :data (cadr (assoc :results data))))
                     data)))
-      (let* ((meta (cadr (assoc :meta data)))
-             (type (cdr (assoc :type meta))))
-        (when meta
-          (cond
-            ((string= type "node")
-             (let ((id (cdr (assoc :id meta))))
-               (neo:node-get-by-id id)))
-            (t (error (format nil "Unknown item type returned from neo4j: `~A'" type)))))))))
+      ;; (log:debug data)
+      (loop
+         for meta in (geta :meta data)
+         for type = (geta :type meta)
+         collect
+           (progn
+             ;; (log:debug meta type)
+             (cond
+               ((string= type "node")
+                (let ((id (cdr (assoc :id meta))))
+                  (neo:node-get-by-id id)))
+               (t (error (format nil "Unknown item type returned from neo4j: `~A'" type)))))))))
+
+(defun make-composite-node (query-data)
+  "Create node from few returned nodes or with additional properties included."
+  (when query-data
+    (let* ((results (car* (geta :results query-data)))
+           (columns (geta :columns results))
+           (data (cadr (assoc :data results))))
+      (unless results
+        (log:warn "No results to make composite-node"))
+      ;; (log:debug results columns data)
+      (let ((properties
+             (loop
+                for meta in (geta :meta data)
+                for type = (geta :type meta)
+                for row in (geta :row data)
+                for column in columns
+                append
+                  (progn
+                    ;; (log:debug column meta type row)
+                    (cond
+                      ((or (null type) ;; no type, so column is name of variable, row is just the value, let's make alist.
+                           (and (listp row) (car row) (listp (caar row))))
+                       ;; FIXME should we treat all columns like that, even when type == node?
+                       (list (cons column row))
+                       )
+                      ((string= type "node") ;; full node, so value is alist, lets treat it as in make-standard-node
+                       (neo::normalize-alist row))
+
+                      (t (error "Unexpected combination, type must be node or nil")))))))
+        (make-instance 'composite-node
+                       :properties properties)))))
 
 (defmethod node-delete ((node standard-node) &key cascade)
   (node-delete (node-id node) :cascade cascade))
