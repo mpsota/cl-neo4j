@@ -72,7 +72,9 @@
            #:*neo4j-pass*
            ;;
            #:with-request-handler
-           #:set-request-handler))
+           #:set-request-handler
+           ;; Utils
+           #:geta))
 
 (defpackage #:cl-neo4j-wrapper
   (:nicknames #:neo)
