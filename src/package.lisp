@@ -74,7 +74,9 @@
            #:with-request-handler
            #:set-request-handler
            ;; Utils
-           #:geta))
+           #:geta
+           #:car*
+           ))
 
 (defpackage #:cl-neo4j-wrapper
   (:nicknames #:neo)
