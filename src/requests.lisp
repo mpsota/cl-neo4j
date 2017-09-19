@@ -113,7 +113,7 @@
           (curl:perform))
       (values status body))))
 
-#-cl-neo4j-drakma
+#+cl-neo4j-curl
 (defmethod send-request ((handler basic-handler) request)
   (with-accessors ((method request-method) (uri request-uri) (payload request-payload))
       request
@@ -147,6 +147,25 @@
                       :content-type (if payload "application/json")
                       :accept "application/json; charset=UTF-8")
       (values status body))))
+
+#-(or cl-neo4j-drakma cl-neo4j-curl)
+(defmethod send-request ((handler basic-handler) request)
+  (with-accessors ((method request-method) (uri request-uri) (payload request-payload) (parameters request-parameters))
+      request
+    (let ((uri (format-neo4j-query (handler-host handler) (handler-port handler) uri)))
+      (multiple-value-bind (body status)
+          ;; dexador
+          (dex:request uri
+                       :method method
+                       :content payload
+                       :content-type "application/json"
+                       :timeout *connection-timeout*
+                       :use-connection-pool t
+                       :headers '(("X-Stream" . "true")
+                                  )
+                       :basic-auth (cons (handler-user handler)
+                                         (handler-pass handler)))
+        (values status body)))))
 
 (defmethod handle-request ((handler basic-handler) request error-handlers)
   (multiple-value-bind (status body) (send-request handler request)

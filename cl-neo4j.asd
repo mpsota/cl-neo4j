@@ -17,7 +17,8 @@
                :babel
                :cl-json
                :cl-ppcre
-               #-cl-neo4j-drakma :curl)
+               #-(or cl-neo4j-drakma cl-neo4j-curl):dexador
+               #+cl-neo4j-curl :curl)
   :components
   ((:module "src"
             :serial t
