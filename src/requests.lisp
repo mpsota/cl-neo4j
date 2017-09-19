@@ -158,11 +158,12 @@
           (dex:request uri
                        :method method
                        :content payload
-                       :content-type "application/json"
                        :timeout *connection-timeout*
                        :use-connection-pool t
                        :headers '(("X-Stream" . "true")
+                                  ("Content-Type" . "application/json")
                                   )
+                       :keep-alive t
                        :basic-auth (cons (handler-user handler)
                                          (handler-pass handler)))
         (values status body)))))
