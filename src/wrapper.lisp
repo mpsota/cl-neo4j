@@ -274,6 +274,7 @@
 (defun make-standard-node2 (data)
   ;; handle both already filtered data and raw, bases on node.id and extract all slots in node with given node.id.
   ;; if more than 1 node in meta - return all of them.
+  (log:debug data)
   (when data
     (let ((data (if (geta :results data)
                     (cadr (assoc :data (cadr (assoc :results data))))
@@ -291,36 +292,40 @@
                   (neo:node-get-by-id id)))
                (t (error (format nil "Unknown item type returned from neo4j: `~A'" type)))))))))
 
-(defun make-composite-node (query-data)
+(defun make-composite-nodes (query-data)
   "Create node from few returned nodes or with additional properties included."
+  (log:debug query-data)
   (when query-data
     (let* ((results (car* (geta :results query-data)))
            (columns (geta :columns results))
-           (data (cadr (assoc :data results))))
+           (datas (cdr (assoc :data results))))
       (unless results
         (log:warn "No results to make composite-node"))
-      ;; (log:debug results columns data)
-      (let ((properties
-             (loop
-                for meta in (geta :meta data)
-                for type = (geta :type meta)
-                for row in (geta :row data)
-                for column in columns
-                append
-                  (progn
-                    ;; (log:debug column meta type row)
-                    (cond
-                      ((or (null type) ;; no type, so column is name of variable, row is just the value, let's make alist.
-                           (and (listp row) (car row) (listp (caar row))))
-                       ;; FIXME should we treat all columns like that, even when type == node?
-                       (list (cons column row))
-                       )
-                      ((string= type "node") ;; full node, so value is alist, lets treat it as in make-standard-node
-                       (neo::normalize-alist row))
+      (loop
+         for data in datas
+         collect
+         ;; (log:debug results columns data)
+           (let ((properties
+                  (loop
+                     for meta in (geta :meta data)
+                     for type = (geta :type meta)
+                     for row in (geta :row data)
+                     for column in columns
+                     append
+                       (progn
+                         ;; (log:debug column meta type row)
+                         (cond
+                           ((or (null type) ;; no type, so column is name of variable, row is just the value, let's make alist.
+                                (and (listp row) (car row) (listp (caar row))))
+                            ;; FIXME should we treat all columns like that, even when type == node?
+                            (list (cons column row))
+                            )
+                           ((string= type "node") ;; full node, so value is alist, lets treat it as in make-standard-node
+                            (neo::normalize-alist row))
 
-                      (t (error "Unexpected combination, type must be node or nil")))))))
-        (make-instance 'composite-node
-                       :properties properties)))))
+                           (t (error "Unexpected combination, type must be node or nil")))))))
+             (make-instance 'composite-node
+                            :properties properties))))))
 
 (defmethod node-delete ((node standard-node) &key cascade)
   (node-delete (node-id node) :cascade cascade))
