@@ -274,7 +274,6 @@
 (defun make-standard-node2 (data)
   ;; handle both already filtered data and raw, bases on node.id and extract all slots in node with given node.id.
   ;; if more than 1 node in meta - return all of them.
-  (log:debug data)
   (when data
     (let ((data (if (geta :results data)
                     (cadr (assoc :data (cadr (assoc :results data))))
@@ -294,7 +293,6 @@
 
 (defun make-composite-nodes (query-data)
   "Create node from few returned nodes or with additional properties included."
-  (log:debug query-data)
   (when query-data
     (let* ((results (car* (geta :results query-data)))
            (columns (geta :columns results))
