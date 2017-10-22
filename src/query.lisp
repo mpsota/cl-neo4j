@@ -11,7 +11,7 @@
       ,@(when include-stats
           `(("includeStats" ,@include-stats)))
       ,@(when parameters
-          `(("parameters" ,@parameters))))))
+          `(("parameters" ,@(alexandria:alist-hash-table parameters))))))) ;; without transformation to hashtable it will be encoded as array in case there is nil cdr '(("foo" . nil))
 
 (defmethod encode-cypher-query ((q cypher-query))
   (json:encode-json-alist-to-string (structure-cypher-query q)))
@@ -23,3 +23,17 @@
                           :include-stats include-stats
                           )))
     q))
+
+#+test ;; expected json object, not list in both cases
+(encode-neo4j-json-payload (list (make-instance 'cypher-query
+                                                          :statement "CREATE (node:foo  {`foo`: {NODE_FOO}}) RETURN (node)"
+                                                          :parameters '(("NODE_FOO"))
+                                                          :include-stats t))
+                           :statements)
+
+#+test
+(encode-neo4j-json-payload (list (make-instance 'cypher-query
+                                                          :statement "CREATE (node:foo  {`foo`: {NODE_FOO}}) RETURN (node)"
+                                                          :parameters '(("NODE_FOO" . 5))
+                                                          :include-stats t))
+                                     :statements)
