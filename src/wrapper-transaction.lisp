@@ -49,12 +49,12 @@
         (error "error while commiting transaction: ~a" errors)
         t)))
 
-(defmethod rollback-transaction ((tr transaction))
+(defmethod rollback-transaction ((tr transaction) &optional parent-condition)
   "Rollback open transaction `TRANSACTION'"
   (let* ((response (cl-neo4j:transaction-rollback :transaction (transaction-id tr)))
          (errors (cdr (assoc :errors response))))
     (if errors
-        (error "error while rolling-back transaction: ~a" errors)
+        (error "error while rolling-back transaction: ~a~%~%rolling back because of: ~A" errors (or parent-condition "unknown reason"))
         t)))
 
 (defmacro with-transaction (&body body)
@@ -71,9 +71,9 @@
              (commit-transaction *transaction*)))
        (error (c)
          (handler-case
-             (rollback-transaction *transaction*)
+             (rollback-transaction *transaction* c)
            (error (d)
-             (format *debug-io* "Error while rolling back trasnaction: ~A" d)))
+             (format *debug-io* "Error while rolling back trasnaction: ~A~%~%rolling back because of: ~A" d c)))
          (error c)))))
 
 ;; General queries
