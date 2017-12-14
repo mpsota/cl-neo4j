@@ -114,20 +114,34 @@
       (values status body))))
 
 #-cl-neo4j-drakma
+(defmacro handle-curl-conditions (&body body)
+  (let ((curl-conditions-handler (gensym)))
+    `(block ,curl-conditions-handler
+       (handler-bind ((curl:curl-error
+                       (lambda (c)
+                         (return-from ,curl-conditions-handler
+                           (curl:error-code-case (curl:error-code c)
+                             (curl::operation-timeouted (error "Connection to database timeouted"))
+                             (curl::couldnt-resolve-host (error "Host couldn't be resolved"))
+                             (t (error c)))))))
+         (return-from ,curl-conditions-handler (progn ,@body))))))
+
+#-cl-neo4j-drakma
 (defmethod send-request ((handler basic-handler) request)
   (with-accessors ((method request-method) (uri request-uri) (payload request-payload))
       request
     (multiple-value-bind (body status)
-        (curl:http-request (format-neo4j-query (handler-host handler)
-                                               (handler-port handler)
-                                               uri)
-                           :connection-timeout *connection-timeout*
-                           :method method
-                           :content payload
-                           :content-type "application/json"
-                           :basic-authorization (list (handler-user handler)
-                                                      (handler-pass handler))
-                           :additional-headers '("X-Stream: true"))
+        (handle-curl-conditions
+          (curl:http-request (format-neo4j-query (handler-host handler)
+                                                 (handler-port handler)
+                                                 uri)
+                             :connection-timeout *connection-timeout*
+                             :method method
+                             :content payload
+                             :content-type "application/json"
+                             :basic-authorization (list (handler-user handler)
+                                                        (handler-pass handler))
+                             :additional-headers '("X-Stream: true")))
       (values status body))))
 
 #+cl-neo4j-drakma
