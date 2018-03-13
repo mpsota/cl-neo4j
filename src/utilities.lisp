@@ -104,11 +104,20 @@
                        message
                        problematic-query)))))
 
+(define-condition neo4j-error-entity-not-found (neo4j-error) ()
+  (:report (lambda (condition stream)
+             (with-slots (code message problematic-query) condition
+               (format stream "ENTITY-NOT-FOUND: ~A~%~A~%~%~S"
+                       code
+                       message
+                       problematic-query)))))
+
 (defun make-neo4j-condition (&key code message problematic-query)
   (assert (stringp code))
   (let ((condition-type
           (alexandria:switch (code :test #'string=)
             ("Neo.TransientError.Transaction.DeadlockDetected" 'neo4j-error-retry)
+            ("Neo.ClientError.Statement.EntityNotFound" 'neo4j-error-entity-not-found)
             (t 'neo4j-error))))
     (make-condition condition-type
                     :code code
