@@ -29,8 +29,11 @@
 
 (setf *read-default-float-format* 'double-float)
 
+(defun as-hex (x)
+  (format nil "~{~2,'0X~^:~}" (coerce x 'list)))
+
 (defun packed-hex (x)
-  (format nil "~{~2,'0X~^:~}" (coerce (packed x) 'list)))
+  (as-hex (packed x)))
 
 (defun rpack (thing type)
   (reverse (packet:pack thing type)))
@@ -130,12 +133,13 @@
                 (ainsert #xdd (rpack size :uint16)))
                (t (error "Vector (structure) `~A' too long to pack" v)))
              (aappend (rpack signature :uint8)
-                      (reduce #'aappend
-                              (loop
-                                for i from 0 below size
-                                collect (packed (elt fields i))))))))
+                      (when (> size 0)
+                        (reduce #'aappend
+                                (loop
+                                  for i from 0 below size
+                                  collect (packed (elt fields i)))))))))
 
-(defmethod packed ((l list))
+#-map-as-ht(defun packed-pack-list (l)
   (let* ((size (length l)))
     (aappend (cond
                ((< size #x10)
@@ -150,8 +154,32 @@
              (reduce #'aappend
                      (mapcar #'packed l)))))
 
+#-map-as-ht(defun packed-pack-alist (l)
+  (let* ((size (length l)))
+    (aappend (cond
+               ((< size #x10)
+                (rpack (+ #xA0 size) :uint8))
+               ((< size #x100)
+                (ainsert #xd8 (rpack size :uint8)))
+               ((< size #x10000)
+                (ainsert #xd9 (rpack size :uint16)))
+               ((< size #x100000000)
+                (ainsert #xda (rpack size :uint32)))
+               (t (error "Alist `~A' too long to pack" l)))
+             (when l
+               (reduce #'aappend
+                       (mapcar (lambda (x)
+                                 (aappend (packed (car x)) (packed (cdr x))))
+                               l))))))
+
+#-map-as-ht(defmethod packed ((l list))
+    ;; two cases - list and map (list with :OBJ as car)
+    (if (eq (car l) :obj)
+        (packed-pack-alist (cdr l))
+        (packed-pack-list l)))
+
 ;; HASH-TABLE is mapped to Bolt map
-(defmethod packed ((ht hash-table))
+#+map-as-ht(defmethod packed ((ht hash-table))
   (let* ((size (hash-table-count ht))
          (keys-and-values nil))
     (maphash (lambda (k v)
@@ -230,9 +258,9 @@
             (1+ offset)))))
 
 
-(defun unpack-ht (data items)
+#-map-as-ht(defun unpack-alist (data items)
   (let ((offset 0)
-        (ht (make-hash-table :test 'equal)))
+        (alist (list :obj)))
     (dotimes (i items)
       (progn i)
       (let ((key (destructuring-bind (items items-offset) (unpack data)
@@ -243,12 +271,39 @@
                    (setf data (subseq data items-offset)
                          offset (+ offset items-offset))
                      items)))
+        (setf alist (append alist (list (cons key value))))))
+    ;; Add 1 for hash-table size marker
+    (list alist (1+ offset))))
+
+#-map-as-ht(defun unpack-alist* (data size-specifier-type)
+  "Unpack alist with explicite length"
+  (let ((size (unpack-number size-specifier-type (subseq data 0 (offset size-specifier-type)))))
+    (destructuring-bind (items offset)
+        (unpack-alist (subseq data (offset size-specifier-type))
+                   size)
+      ;; Add size marker to offset
+      (list items
+            (1+ offset)))))
+
+#+map-as-ht(defun unpack-ht (data items)
+  (let ((offset 0)
+        (ht (make-hash-table :test 'equal)))
+    (dotimes (i items)
+      (progn i)
+      (let ((key (destructuring-bind (items items-offset) (unpack data)
+                   (setf data (subseq data items-offset)
+                         offset (+ offset items-offset))
+                   items))
+            (value (destructuring-bind (items items-offset) (unpack data)
+                     (setf data (subseq data items-offset)
+                           offset (+ offset items-offset))
+                     items)))
         (setf (gethash key ht)
               value)))
     ;; Add 1 for hash-table size marker
     (list ht (1+ offset))))
 
-(defun unpack-ht* (data size-specifier-type)
+#+map-as-ht(defun unpack-ht* (data size-specifier-type)
   "Unpack hash-table with explicite length"
   (let ((size (unpack-number size-specifier-type (subseq data 0 (offset size-specifier-type)))))
     (destructuring-bind (items offset)
@@ -318,16 +373,23 @@
       ((= marker #xd4) (unpack-list* rest :uint8))
       ((= marker #xd5) (unpack-list* rest :uint16))
       ((= marker #xd6) (unpack-list* rest :uint32))
-      ;; hash-tables (maps)
+      ;; hash-tables/alists (maps)
       ;;; size in marker
-      ((and (<= #xa0 marker)
-            (< marker #xb0))
-       (let ((length (logand marker #x0f)))
-         (unpack-ht rest length)))
+      #+map-as-ht((and (<= #xa0 marker)
+                       (< marker #xb0))
+                  (let ((length (logand marker #x0f)))
+                    (unpack-ht rest length)))
+      #-map-as-ht((and (<= #xa0 marker)
+                       (< marker #xb0))
+                  (let ((length (logand marker #x0f)))
+                    (unpack-alist rest length)))
       ;;; ht with explicite size
-      ((= marker #xd8) (unpack-ht* rest :uint8))
-      ((= marker #xd9) (unpack-ht* rest :uint16))
-      ((= marker #xda) (unpack-ht* rest :uint32))
+      #+map-as-ht((= marker #xd8) (unpack-ht* rest :uint8))
+      #+map-as-ht((= marker #xd9) (unpack-ht* rest :uint16))
+      #+map-as-ht((= marker #xda) (unpack-ht* rest :uint32))
+      #-map-as-ht((= marker #xd8) (unpack-alist* rest :uint8))
+      #-map-as-ht((= marker #xd9) (unpack-alist* rest :uint16))
+      #-map-as-ht((= marker #xda) (unpack-alist* rest :uint32))
       ;; vectors (structs)
       ;;; size in marker
       ((and (<= #xb0 marker)
@@ -337,20 +399,18 @@
       ;;; vectors with explicite size
       ((= marker #xdc) (unpack-vector* rest :uint8))
       ((= marker #xdd) (unpack-vector* rest :uint16))
-
-
-
-
-
       )))
 
 (defun unpacked (bytes)
-  (loop
-    with unpacked = nil
-    while (and bytes (> (length bytes) 0))
-    do
-       (destructuring-bind (thing offset) (unpack bytes)
-         (alexandria:appendf unpacked (list thing))
-         (setf bytes (subseq bytes offset)))
-    finally (return unpacked)))
+  (let ((unpacked (loop
+                    with unpacked = nil
+                    while (and bytes (> (length bytes) 0))
+                    do
+                       (destructuring-bind (thing offset) (unpack bytes)
+                         (alexandria:appendf unpacked (list thing))
+                         (setf bytes (subseq bytes offset)))
+                    finally (return unpacked))))
+    (if (not (cdr unpacked))
+        (car unpacked)
+        (error "Unpacked data ~S is malformed! (NOT (NULL (CDR UNPACKED)))" unpacked))))
 
