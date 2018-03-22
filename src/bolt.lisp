@@ -1,8 +1,8 @@
 (in-package #:cl-neo4j)
 
-;;(ql:quickload :cl-pack)
 
 (defvar *socket* nil)
+(defvar *transaction* nil)
 
 (defparameter +messages+
   '(:init #x01
@@ -39,6 +39,14 @@
              :key #'cadr)))
 
 (defparameter +bolt-message-chunk-size+ 16)
+
+(defparameter *connection-pool-size* 64)
+
+(defvar *connection-details* '(:host nil
+                               :port nil
+                               :login nil
+                               :password nil))
+
 
 ;; Utilities
 
@@ -85,7 +93,7 @@
 (defparameter +bolt-version+ 1)
 
 (defun bolt-connect (host &optional (port 7687))
-  (setf *socket* (usocket:socket-connect host port :element-type '(unsigned-byte 8))))
+  (usocket:socket-connect host port :element-type '(unsigned-byte 8)))
 
 (defun bolt-handshake (socket &key (version +bolt-version+))
   (let ((raw-bolt-version (reduce #'aappend (mapcar (lambda (x) (rpack x :uint32)) (list version 0 0 0)))))
@@ -153,6 +161,7 @@
     (ecase (structure-type (car record))
       (:node (handle-record-node record)))))
 
+
 ;; Message handling and consuming
 
 (defun handle-bolt-response-status (bolt-response)
@@ -180,23 +189,143 @@
                                   args)))
   (bolt-consume socket))
 
+
 ;; Low-level interface
+
 (defun run (socket statement statement-params)
   (bolt-message socket :run statement (funcall #'make-map statement-params)))
 
 (defun pull-all (socket)
   (bolt-message socket :pull-all))
 
-(defun login (login password)
-  (bolt-message *socket*
+(defun login (socket login password)
+  (bolt-message socket
                 :init
                 "MyClient/1.0"
                 (make-map `(("scheme" "basic")
                             ("principal" ,login)
                             ("credentials" ,password)))))
 
-;; Higher-level interface
-(defun bolt-query (socket statement statement-params)
-  (run socket statement statement-params)
-  (pull-all socket))
 
+;; Connection pooling
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun locked-value-lock-name (name)
+    "Used for locked-values"
+    (intern (format nil "~A-LOCK" name) (find-package 'curl)))
+
+  (defmacro defvar-locked (name &optional default docstring)
+    "Replacement for defvar for thread-locked variables"
+    `(progn
+       (defvar ,name ,default ,@(when docstring `(,docstring)))
+       (defvar ,(locked-value-lock-name name) (bt:make-lock ,(string name)))))
+
+  (defmacro with-locked-var (place &body body)
+    `(bt:with-lock-held (,(locked-value-lock-name place))
+       ,@body))
+
+  (defvar-locked *connections* nil))
+
+(defun init-connection ()
+  (let ((socket (bolt-connect (getf *connection-details* :host)
+                              (getf *connection-details* :port))))
+    (bolt-handshake socket)
+    (login socket
+           (getf *connection-details* :login)
+           (getf *connection-details* :password))
+    (with-locked-var *connections*
+      (push socket *connections*))))
+
+(defun init-connections (&key (host "127.0.0.1") (port 7687) (login "neo4j") password (pool-size *connection-pool-size*))
+  (setf *connection-details* (list :host host
+                                   :port port
+                                   :login login
+                                   :password password))
+  (dotimes (i (- pool-size (length *connections*)))
+    (init-connection)))
+
+(defun get-connection ()
+  (loop
+    with connection = nil
+    while (null connection)
+    do (setf connection
+             (with-locked-var *connections*
+               (pop *connections*)))
+    finally (return connection)))
+
+(defun return-connection (connection)
+  (assert connection)
+  (with-locked-var *connections*
+    (push connection *connections*)))
+
+(defun close-connection (connection)
+  (assert connection)
+  (usocket:socket-close connection))
+
+(defmacro with-connection (() &body body)
+  `(if *socket*
+       ;; In case of nested execution, don't take another socket but reuse
+       (progn ,@body)
+       ;; Else take new one
+       (let ((*socket* (get-connection)))
+         (handler-case
+             (prog1
+                 (progn ,@body)
+               ;; Return connection to pool
+               (return-connection *socket*))
+           (serious-condition (c)
+             (close-connection *socket*)
+             ;; Start new connection to replace dead one
+             (init-connection)
+             ;; Throw error
+             (error c))))))
+
+
+;; Higher-level interface
+(defun bolt-query (statement statement-params)
+  (assert *socket*)
+  (run *socket* statement statement-params)
+  (pull-all *socket*))
+
+;;(init-connections :host "127.0.0.1" :port 7687 :login "neo4j" :password "endsec")
+
+
+;; Transactions
+
+(defun begin-transaction ()
+  (assert *transaction*)
+  (bolt-query "BEGIN" nil))
+
+(defun rollback-transaction ()
+  (assert *transaction*)
+  (handler-case (bolt-query "ROLLBACK" nil)
+    (serious-condition (c) (warn "Transaction ~S rollback failed: ~S" *transaction* c))))
+
+(defun commit-transaction ()
+  (assert *transaction*)
+  (bolt-query "COMMIT" nil))
+
+(defmacro with-transaction (&body body)
+  "Execute `BODY' within one transaction. This means using only one `*SOCKET*' from pool."
+  `(if *transaction*
+       ;; If already in transaction, just execute
+       (progn ,@body)
+       ;; Else start new one
+       (let* ((*transaction* (get-connection))
+              (*socket* *transaction*))
+         (handler-case
+             (prog2
+                 (begin-transaction)
+                 (progn ,@body)
+               (commit-transaction)
+               ;; Return connection to pool
+               (return-connection *socket*))
+           (serious-condition (c)
+             ;; rollback
+             (rollback-transaction)
+             ;; close connection
+             (close-connection *socket*)
+             ;; Start new connection to replace dead one
+             (init-connection)
+             ;; Throw error
+             (error c))))))

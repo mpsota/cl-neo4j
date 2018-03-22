@@ -139,6 +139,7 @@
                                   for i from 0 below size
                                   collect (packed (elt fields i)))))))))
 
+;; Alist is mapped to Bolt map
 #-map-as-ht(defun packed-pack-list (l)
   (let* ((size (length l)))
     (aappend (cond
