@@ -11,20 +11,25 @@
   :description "neo4j RESTful Client Interface"
   :long-description "neo4j RESTful Client Interface and higher order extensible CL wrapper for it."
   :depends-on (:alexandria
-               :anaphora
-               :split-sequence
-               :drakma
+               :bordeaux-threads
                :babel
+               :usocket
                :cl-json
-               :cl-ppcre
-               #-cl-neo4j-drakma :curl)
+               :packet)
   :components
-  ((:module "src"
+  ((:file "package")
+   (:file "packstream")
+   (:file "utils")
+   (:file "conditions")
+   (:file "classes")
+   (:file "bolt"))
+   #+nil(:module "src"
             :serial t
             :components
             ((:file "package")
              (:file "globals")
              (:file "query")
+             (:file "packstream")
              (:file "utilities" :depends-on ("query"))
              (:file "conditions" :depends-on ("utilities"))
              (:file "requests" :depends-on ("conditions" "query" "globals"))
@@ -32,17 +37,6 @@
              (:file "wrapper-transaction" :depends-on ("utilities" "restapi"))
              (:file "query-restapi" :depends-on ("utilities" "wrapper-transaction"))
              (:file "wrapper" :depends-on ("wrapper-transaction" "query-restapi"))
-             ))))
+             (:file "bolt" :depends-on ("wrapper"))
+             )))
 
-(defsystem cl-neo4j.tests
-  :depends-on  (:cl-neo4j
-                :fiveam)
-  :components
-  ((:module "test"
-            :serial t
-            :components
-            ((:file "package")
-             (:file "util")
-             (:file "main")
-             (:file "restapi")
-             (:file "wrapper")))))

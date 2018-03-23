@@ -1,6 +1,6 @@
 ;; Higher lever wrapper for neo4j REST. Users need to define at least node-id and relationship-id accessors for portability + constructors.
 
-(in-package #:cl-neo4j-wrapper)
+(in-package #:cl-neo4j-wrapper) ;; neo::
 
 ;;; Protocol
 
@@ -232,7 +232,9 @@
   (mapcar (lambda (el)
             (if (listp (car el))
                 (normalize-alist el);; looks wrong...
-                (cons (json:lisp-to-camel-case (symbol-name (car el)))
+                (cons (json:lisp-to-camel-case (if (symbolp (car el))
+                                                   (symbol-name (car el))
+                                                   (car el)))
                       (cdr el))))
           alist))
 
@@ -278,13 +280,11 @@
     (let ((data (if (geta :results data)
                     (cadr (assoc :data (cadr (assoc :results data))))
                     data)))
-      ;; (log:debug data)
       (loop
          for meta in (geta :meta data)
          for type = (geta :type meta)
          collect
            (progn
-             ;; (log:debug meta type)
              (cond
                ((string= type "node")
                 (let ((id (cdr (assoc :id meta))))
@@ -298,11 +298,10 @@
            (columns (geta :columns results))
            (datas (cdr (assoc :data results))))
       (unless results
-        (log:warn "No results to make composite-node"))
+        (warn "No results to make composite-node"))
       (loop
          for data in datas
          collect
-         ;; (log:debug results columns data)
            (let ((properties
                   (loop
                      for meta in (geta :meta data)
@@ -311,7 +310,6 @@
                      for column in columns
                      append
                        (progn
-                         ;; (log:debug column meta type row)
                          (cond
                            ((or (null type) ;; no type, so column is name of variable, row is just the value, let's make alist.
                                 (and (listp row) (car row) (listp (caar row))))

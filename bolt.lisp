@@ -1,6 +1,5 @@
 (in-package #:cl-neo4j)
 
-
 (defvar *socket* nil)
 (defvar *transaction* nil)
 
@@ -40,7 +39,7 @@
 
 (defparameter +bolt-message-chunk-size+ 16)
 
-(defparameter *connection-pool-size* 64)
+(defparameter *default-connection-pool-size* 64)
 
 (defvar *connection-details* '(:host nil
                                :port nil
@@ -146,22 +145,6 @@
     (list (response code) response)))
 
 
-;; Node, relationship, path handling
-
-(defun handle-record-node (record)
-  (destructuring-bind (node-id labels properties) (cdr record)
-    (make-instance 'neo::standard-node
-                   :id node-id
-                   :properties (cdr properties)
-                   :labels labels)))
-
-(defun handle-record (record)
-  "Destructure `RECORD'"
-  (let ((record (caar record)))
-    (ecase (structure-type (car record))
-      (:node (handle-record-node record)))))
-
-
 ;; Message handling and consuming
 
 (defun handle-bolt-response-status (bolt-response)
@@ -171,7 +154,6 @@
         (:failure (error (make-condition 'bolt-error
                                          :code (geta "code" (cdar rest))
                                          :message (geta "message" (cdar rest)))))
-        (:record (list :record (handle-record rest)))
         (otherwise bolt-response)))))
 
 (defun bolt-consume (socket)
@@ -189,8 +171,24 @@
                                   args)))
   (bolt-consume socket))
 
+(defun filter-messages (type messages)
+  "Leave only messagess of specific `TYPE' (like :RECORD or SUCCESS) from `MESSAGES' messages"
+  ;;((:RECORD ((78 4194 ("IndexDefinition" "TotalCompanyImpact")
+  ;;               (:OBJ ("sandbox" . "default") ("short_name" . "Total")
+  ;;                     ("id" . "32352900-22E5-11E8-8109-68F7280A9D01") ("enabled" . T)
+  ;;                     ("index_type" . "total-company-impact") ("timestamp" . 1520523085)))))
+  ;; (:SUCCESS (:OBJ ("result_consumed_after" . 0) ("type" . "r"))))
+  (assert (keywordp type))
+  (mapcar #'cadr
+          (remove type messages
+                  :key #'car
+                  :test-not #'eq)))
+
 
 ;; Low-level interface
+
+#+unused(defun ack-failure (socket)
+          (bolt-message socket :ack-failure))
 
 (defun run (socket statement statement-params)
   (bolt-message socket :run statement (funcall #'make-map statement-params)))
@@ -210,20 +208,6 @@
 ;; Connection pooling
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun locked-value-lock-name (name)
-    "Used for locked-values"
-    (intern (format nil "~A-LOCK" name) (find-package 'curl)))
-
-  (defmacro defvar-locked (name &optional default docstring)
-    "Replacement for defvar for thread-locked variables"
-    `(progn
-       (defvar ,name ,default ,@(when docstring `(,docstring)))
-       (defvar ,(locked-value-lock-name name) (bt:make-lock ,(string name)))))
-
-  (defmacro with-locked-var (place &body body)
-    `(bt:with-lock-held (,(locked-value-lock-name place))
-       ,@body))
-
   (defvar-locked *connections* nil))
 
 (defun init-connection ()
@@ -236,7 +220,7 @@
     (with-locked-var *connections*
       (push socket *connections*))))
 
-(defun init-connections (&key (host "127.0.0.1") (port 7687) (login "neo4j") password (pool-size *connection-pool-size*))
+(defun init-connections (&key (host "127.0.0.1") (port 7687) (login "neo4j") password (pool-size *default-connection-pool-size*))
   (setf *connection-details* (list :host host
                                    :port port
                                    :login login
@@ -282,10 +266,40 @@
 
 
 ;; Higher-level interface
-(defun bolt-query (statement statement-params)
+(defun handle-record-node (record)
+  "Record is NODE, create standard-node from it"
+  (destructuring-bind (node-id labels properties) record
+    (make-instance 'neo::standard-node
+                   :id node-id
+                   :properties (neo::normalize-alist (cdr properties))
+                   :labels labels)))
+
+(defun handle-record-table (record fields)
+  "Record is TABLE, create standard-node from it"
+  (let ((alist (mapcar #'cons fields record)))
+    (make-instance 'neo::composite-node
+                   :properties (neo::normalize-alist alist))))
+
+(defun handle-record (record fields)
+  "Destructure `RECORD'"
+  (case (ignore-errors (structure-type (caar record)))
+    (:node (handle-record-node (cdar record)))
+    (otherwise (handle-record-table record fields))))
+
+(defun handle-create-nodes (list-of-fields list-of-records)
+  ;; TODO handle all messages at once
+  ;; for each :record with (eq (car properties) :obj) create standard-node
+  ;; else. create composite-node
+  (mapcar (lambda (record) (handle-record record list-of-fields))
+          list-of-records))
+
+(defun query (statement statement-params)
   (assert *socket*)
-  (run *socket* statement statement-params)
-  (pull-all *socket*))
+  (let ((success (filter-messages :success (run *socket* statement statement-params))))
+    ;; no need to check if success - in other case it will throw an error
+    (let* ((fields (geta "fields" (cdar success)))
+           (records (filter-messages :record (pull-all *socket*))))
+      (handle-create-nodes fields records))))
 
 ;;(init-connections :host "127.0.0.1" :port 7687 :login "neo4j" :password "endsec")
 
