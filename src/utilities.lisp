@@ -1,6 +1,6 @@
 (in-package #:cl-neo4j)
 
-(defun format-neo4j-query (url resource &key (db-postfix "db/data/") (protocol "http"))
+(defun format-neo4j-query (url resource &key (db-postfix "db/data/"))
   (format nil "~A/~A~A" url db-postfix resource))
 
 (defgeneric encode-neo4j-json-payload (object encode-type &key)
@@ -12,21 +12,21 @@
   (declare (ignore encode-type))
   (encode-json-alist-to-string object))
 
-(defmethod encode-neo4j-json-payload (object (encode-type (eql :node-url)) &key host port)
+(defmethod encode-neo4j-json-payload (object (encode-type (eql :node-url)) &key url)
   (declare (ignore encode-type))
-  (format-neo4j-query host port (format nil "node/~A" object)))
+  (format-neo4j-query url (format nil "node/~A" object)))
 
-(defmethod encode-neo4j-json-payload (object (encode-type (eql :node-url-single)) &key host port)
+(defmethod encode-neo4j-json-payload (object (encode-type (eql :node-url-single)) &key url)
   (declare (ignore encode-type))
-  (encode-neo4j-json-payload (encode-neo4j-json-payload object :node-url :host host :port port) :string))
+  (encode-neo4j-json-payload (encode-neo4j-json-payload object :node-url :url url) :string))
 
-(defmethod encode-neo4j-json-payload (object (encode-type (eql :relationship-url)) &key host port)
+(defmethod encode-neo4j-json-payload (object (encode-type (eql :relationship-url)) &key url)
   (declare (ignore encode-type))
-  (format-neo4j-query host port (format nil "relationship/~A" object)))
+  (format-neo4j-query url (format nil "relationship/~A" object)))
 
-(defmethod encode-neo4j-json-payload (object (encode-type (eql :relationship-url-single)) &key host port)
+(defmethod encode-neo4j-json-payload (object (encode-type (eql :relationship-url-single)) &key url)
   (declare (ignore encode-type))
-  (encode-neo4j-json-payload (encode-neo4j-json-payload object :relationship-url :host host :port port) :string))
+  (encode-neo4j-json-payload (encode-neo4j-json-payload object :relationship-url :url url) :string))
 
 (defmethod encode-neo4j-json-payload (object (encode-type (eql :object)) &key)
   (declare (ignore encode-type))
