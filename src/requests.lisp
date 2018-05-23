@@ -62,17 +62,14 @@
   (:documentation "Closes the handler. Handler should do finalization operarions - batch handler sends the request at this point."))
 
 (defclass basic-handler ()
-  ((host :initarg :host :accessor handler-host :initform *neo4j-host*)
-   (port :initarg :port :accessor handler-port :initform *neo4j-port*)
+  ((url :initarg :url :accessor handler-url :initform *neo4j-url*)
    (user :initarg :user :accessor handler-user :initform *neo4j-user*)
    (pass :initarg :pass :accessor handler-pass :initform *neo4j-pass*))
   (:documentation "Basic handler that just sends request to the database."))
 
-(defun basic-handler (&key (host *neo4j-host*) (port *neo4j-port*)
-                        (user *neo4j-user*) (pass *neo4j-pass*))
+(defun basic-handler (&key (url *neo4j-url*) (user *neo4j-user*) (pass *neo4j-pass*))
   (make-instance 'basic-handler
-                 :host host
-                 :port port
+                 :url url
                  :user user
                  :pass pass))
 
@@ -81,8 +78,7 @@
   (with-accessors ((method request-method) (uri request-uri) (payload request-payload))
       request
     (multiple-value-bind (body status)
-        (http-request (format-neo4j-query (handler-host handler)
-                                          (handler-port handler)
+        (http-request (format-neo4j-query (handler-url handler)
                                           uri)
                       :method method
                       :protocol "http/1.1"
@@ -102,8 +98,7 @@
     (multiple-value-bind (body status)
         (curl:)
         (curl:with-connection-returning-string (:cookies nil)
-          (curl:set-option :url (format-neo4j-query (handler-host handler)
-                                                    (handler-port handler)
+          (curl:set-option :url (format-neo4j-query (handler-url handler)
                                                     uri))
           (curl:set-option :username (handler-user handler))
           (curl:set-option :password (handler-pass handler))
@@ -132,8 +127,7 @@
       request
     (multiple-value-bind (body status)
         (handle-curl-conditions
-          (curl:http-request (format-neo4j-query (handler-host handler)
-                                                 (handler-port handler)
+          (curl:http-request (format-neo4j-query (handler-url handler)
                                                  uri)
                              :connection-timeout *connection-timeout*
                              :method method
@@ -149,8 +143,7 @@
   (with-accessors ((method request-method) (uri request-uri) (payload request-payload) (parameters request-parameters))
       request
     (multiple-value-bind (body status)
-        (http-request (format-neo4j-query (handler-host handler)
-                                          (handler-port handler)
+        (http-request (format-neo4j-query (handler-url handler)
                                           uri)
                       :method method
                       :protocol :http/1.1
