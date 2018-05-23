@@ -63,13 +63,15 @@
 
 (defclass basic-handler ()
   ((url :initarg :url :accessor handler-url :initform *neo4j-url*)
+   (verify :initarg :verify :accessor handler-verify :initform *neo4j-verify*)
    (user :initarg :user :accessor handler-user :initform *neo4j-user*)
    (pass :initarg :pass :accessor handler-pass :initform *neo4j-pass*))
   (:documentation "Basic handler that just sends request to the database."))
 
-(defun basic-handler (&key (url *neo4j-url*) (user *neo4j-user*) (pass *neo4j-pass*))
+(defun basic-handler (&key (url *neo4j-url*) (verify *neo4j-verify*) (user *neo4j-user*) (pass *neo4j-pass*))
   (make-instance 'basic-handler
                  :url url
+                 :verify verify
                  :user user
                  :pass pass))
 
@@ -131,6 +133,7 @@
                                                  uri)
                              :connection-timeout *connection-timeout*
                              :method method
+                             :verify (handler-verify handler)
                              :content payload
                              :content-type "application/json"
                              :basic-authorization (list (handler-user handler)
