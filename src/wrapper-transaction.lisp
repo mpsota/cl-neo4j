@@ -73,7 +73,7 @@
          (handler-case
              (rollback-transaction *transaction* c)
            (error (d)
-             (format *debug-io* "Error while rolling back trasnaction: ~A~%~%rolling back because of: ~A" d c)))
+             (format *debug-io* "Error while rolling back transaction: ~A~%~%rolling back because of: ~A" d c)))
          (error c)))))
 
 ;; General queries
